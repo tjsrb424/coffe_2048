@@ -37,10 +37,9 @@ export function CafeUpgradesCard() {
   return (
     <Card className="space-y-4 p-4">
       <div>
-        <h2 className="text-sm font-bold text-coffee-900">매장 업그레이드</h2>
+        <h2 className="text-sm font-bold text-coffee-900">설비 업그레이드</h2>
         <p className="mt-2 text-sm leading-relaxed text-coffee-700">
-          코인으로 설비를 다듬으면 로비 카페 루프가 조금씩 쾌적해져요. 매장
-          레벨은 세 설비 합으로 자동 반영돼요.
+          세 트랙을 올리면 수치 보정과 매장 레벨이 함께 반영돼요.
         </p>
       </div>
 

@@ -1,13 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { useEffect } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { useResetDocumentScrollOnMount } from "@/hooks/useResetDocumentScrollOnMount";
-import { useCafeAutoSell } from "@/features/lobby/hooks/useCafeAutoSell";
 import { useAppStore } from "@/stores/useAppStore";
-import { CafeLoopSection } from "./CafeLoopSection";
+import { useLobbyFxStore } from "@/stores/useLobbyFxStore";
 import { LastRunCard } from "./LastRunCard";
 import { LobbyMainCard } from "./LobbyMainCard";
 import { LobbyAmbientCustomers } from "./LobbyAmbientCustomers";
@@ -19,33 +17,8 @@ export function LobbyScreen() {
   useResetDocumentScrollOnMount();
   const soundOn = useAppStore((s) => s.settings.soundOn);
   const reducedMotion = useAppStore((s) => s.settings.reducedMotion);
-  const [coinToast, setCoinToast] = useState<{
-    amount: number;
-    kind: "online" | "offline";
-  } | null>(null);
-  const [purchasePulse, setPurchasePulse] = useState(0);
-  const [purchaseKind, setPurchaseKind] = useState<"online" | "offline">(
-    "online",
-  );
-
-  const onCoinsEarned = useCallback((amount: number) => {
-    setCoinToast({ amount, kind: "online" });
-    setPurchaseKind("online");
-    setPurchasePulse((n) => n + 1);
-  }, []);
-
-  const onOfflineSettled = useCallback(
-    (input: { gainedCoins: number; soldCount: number }) => {
-      // soldCount는 후속 UI(상세 모달)에서 쓰기 좋지만, 지금은 토스트만.
-      if (input.gainedCoins <= 0) return;
-      setCoinToast({ amount: input.gainedCoins, kind: "offline" });
-      setPurchaseKind("offline");
-      setPurchasePulse((n) => n + 1);
-    },
-    [],
-  );
-
-  useCafeAutoSell({ onCoinsEarned, onOfflineSettled });
+  const purchasePulse = useLobbyFxStore((s) => s.purchasePulse);
+  const purchaseKind = useLobbyFxStore((s) => s.purchaseKind);
 
   useEffect(() => {
     const audio = new Audio(publicAssetPath("/bgm/lobby.mp3"));
@@ -118,12 +91,6 @@ export function LobbyScreen() {
     };
   }, [reducedMotion, soundOn]);
 
-  useEffect(() => {
-    if (coinToast == null) return;
-    const t = window.setTimeout(() => setCoinToast(null), 1400);
-    return () => window.clearTimeout(t);
-  }, [coinToast]);
-
   return (
     <>
       <AppShell>
@@ -135,7 +102,8 @@ export function LobbyScreen() {
             따뜻한 로비
           </h1>
           <p className="mt-2 text-sm leading-relaxed text-coffee-700">
-            퍼즐 한 판이 곧 매장의 온도를 바꿔요.
+            퍼즐 한 판이 곧 매장의 온도를 바꿔요. 로스팅·메뉴 제작·진열 판매는
+            하단 카페 탭에서 이어가요.
           </p>
         </header>
 
@@ -145,30 +113,10 @@ export function LobbyScreen() {
             purchaseKind={purchaseKind}
           />
           <ResourceBar />
-          <AnimatePresence>
-            {coinToast != null ? (
-              <motion.div
-                key={`${coinToast.kind}-${coinToast.amount}`}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ type: "spring", stiffness: 420, damping: 28 }}
-                className="pointer-events-none absolute left-0 right-0 -top-1 flex"
-              >
-                <div className="flex w-1/3 justify-center">
-                  <span className="rounded-full bg-coffee-700/95 px-3 py-1 text-xs font-semibold text-cream-50 shadow-card ring-1 ring-black/10">
-                    {coinToast.kind === "offline" ? "오프라인 판매 " : ""}+
-                    {coinToast.amount} 코인
-                  </span>
-                </div>
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
         </div>
         <OfflineSalesCard />
         <LastRunCard />
         <LobbyMainCard />
-        <CafeLoopSection />
       </AppShell>
       <BottomNav />
     </>
