@@ -7,6 +7,10 @@ import { publicAssetPath } from "@/lib/publicAssetPath";
 
 type FadeJob = { raf: number; token: number };
 
+function easeOutCubic(t: number) {
+  return 1 - Math.pow(1 - t, 3);
+}
+
 function pickBgmTrack(pathname: string): string | null {
   // 주요 허브 화면에서는 같은 BGM을 유지.
   if (
@@ -36,6 +40,10 @@ export function GlobalBgm() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    const FADE_OUT_MS = 1200;
+    const SWITCH_FADE_OUT_MS = 900;
+    const FADE_IN_MS = 950;
+
     const cancelFade = () => {
       const job = fadeRef.current;
       if (job.raf) cancelAnimationFrame(job.raf);
@@ -55,9 +63,10 @@ export function GlobalBgm() {
       const startAt = performance.now();
       const step = (now: number) => {
         if (fadeRef.current.token !== jobToken) return;
-        const t = Math.min(1, (now - startAt) / ms);
+        const rawT = Math.min(1, (now - startAt) / ms);
+        const t = easeOutCubic(rawT);
         audio.volume = from + (to - from) * t;
-        if (t < 1) {
+        if (rawT < 1) {
           fadeRef.current.raf = requestAnimationFrame(step);
         } else {
           fadeRef.current.raf = 0;
@@ -90,7 +99,7 @@ export function GlobalBgm() {
       detachGestureStart();
       const audio = audioRef.current;
       if (!audio) return;
-      fadeTo(0, 700, () => {
+      fadeTo(0, FADE_OUT_MS, () => {
         audio.pause();
         audio.currentTime = 0;
       });
@@ -103,7 +112,7 @@ export function GlobalBgm() {
       const doPlay = async () => {
         try {
           await audio.play();
-          fadeTo(targetVolume, 900);
+          fadeTo(targetVolume, FADE_IN_MS);
         } catch {
           // 사용자 제스처 전 재생 실패 대비
           if (gestureHandlerRef.current) return;
@@ -126,7 +135,7 @@ export function GlobalBgm() {
 
       // 트랙 전환: 기존은 천천히 페이드아웃 후 교체
       if (!audio.paused && audio.volume > 0.001) {
-        fadeTo(0, 700, () => {
+        fadeTo(0, SWITCH_FADE_OUT_MS, () => {
           audio.pause();
           audio.currentTime = 0;
           audio.src = nextSrc;
