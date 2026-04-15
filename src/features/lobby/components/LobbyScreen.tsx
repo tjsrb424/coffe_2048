@@ -13,6 +13,7 @@ import { LobbyMainCard } from "./LobbyMainCard";
 import { LobbyAmbientCustomers } from "./LobbyAmbientCustomers";
 import { OfflineSalesCard } from "./OfflineSalesCard";
 import { ResourceBar } from "./ResourceBar";
+import { publicAssetPath } from "@/lib/publicAssetPath";
 
 export function LobbyScreen() {
   useResetDocumentScrollOnMount();
@@ -47,7 +48,7 @@ export function LobbyScreen() {
   useCafeAutoSell({ onCoinsEarned, onOfflineSettled });
 
   useEffect(() => {
-    const audio = new Audio("/bgm/lobby.mp3");
+    const audio = new Audio(publicAssetPath("/bgm/lobby.mp3"));
     audio.loop = true;
     audio.preload = "auto";
     const targetVolume = reducedMotion ? 0.22 : 0.28;

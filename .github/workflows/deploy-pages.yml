@@ -33,7 +33,11 @@ jobs:
       - name: Build (Next.js export)
         env:
           GITHUB_ACTIONS: "true"
+          NEXT_PUBLIC_BASE_PATH: "/coffe_2048"
         run: npm run build
+
+      - name: Verify exported audio assets
+        run: test -f out/bgm/lobby.mp3 && test -f out/sfx/click.mp3
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

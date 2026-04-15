@@ -1,16 +1,22 @@
 import type { NextConfig } from "next";
 
-const isGithubPages = process.env.GITHUB_ACTIONS === "true";
-// GitHub Pages는 리포지토리명 하위 경로로 서비스됨
+// GitHub Pages 프로젝트 사이트: 저장소 이름과 동일한 하위 경로
 const githubPagesBasePath = "/coffe_2048";
+// CI에서 명시하면 GITHUB_ACTIONS 여부와 무관하게 동일한 base로 빌드됨
+const deployedBasePath =
+  process.env.NEXT_PUBLIC_BASE_PATH?.trim() ||
+  (process.env.GITHUB_ACTIONS === "true" ? githubPagesBasePath : "");
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   allowedDevOrigins: ["192.168.50.8"],
   // GitHub Pages 배포를 위한 정적 export
   output: "export",
-  basePath: isGithubPages ? githubPagesBasePath : "",
-  assetPrefix: isGithubPages ? githubPagesBasePath : "",
+  basePath: deployedBasePath,
+  assetPrefix: deployedBasePath,
+  env: {
+    NEXT_PUBLIC_BASE_PATH: deployedBasePath,
+  },
   images: { unoptimized: true },
   trailingSlash: true,
   // Windows에서 dev 중 `.next` 매니페스트 경합(ENOENT/MODULE_NOT_FOUND) 완화

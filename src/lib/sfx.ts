@@ -1,9 +1,11 @@
+import { publicAssetPath } from "@/lib/publicAssetPath";
+
 let sharedClick: HTMLAudioElement | null = null;
 
 function getClick(): HTMLAudioElement | null {
   if (typeof window === "undefined") return null;
   if (!sharedClick) {
-    const a = new Audio("/sfx/click.mp3");
+    const a = new Audio(publicAssetPath("/sfx/click.mp3"));
     a.preload = "auto";
     a.volume = 0.85;
     sharedClick = a;
