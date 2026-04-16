@@ -5,7 +5,7 @@ import { getCafeRuntimeModifiers } from "@/features/meta/balance/cafeModifiers";
 import { useAppStore } from "@/stores/useAppStore";
 
 export function useCafeAutoSell(options: {
-  onCoinsEarned?: (amount: number) => void;
+  onCoinsEarned?: (input: { gainedCoins: number; soldCount: number }) => void;
   onOfflineSettled?: (input: { gainedCoins: number; soldCount: number }) => void;
 }) {
   const stepAutoSell = useAppStore((s) => s.stepAutoSell);
@@ -39,7 +39,7 @@ export function useCafeAutoSell(options: {
         recordOfflineSaleSummary({ atMs: now, gainedCoins, soldCount });
         offlineRef.current?.({ gainedCoins, soldCount });
       } else {
-        cbRef.current?.(gainedCoins);
+        cbRef.current?.({ gainedCoins, soldCount });
       }
     };
     tick();

@@ -40,11 +40,39 @@ export type SettingsState = {
   soundOn: boolean;
   vibrationOn: boolean;
   reducedMotion: boolean;
+  /** 로비 첫 방문 힌트 배너를 닫았는지(UI 전용) */
+  lobbyOnboardingSeen: boolean;
 };
 
 export type MetaRuntimeState = {
   /** 하트 회복 기준 시각(ms). 0이면 첫 진입 시 현재 시각으로 초기화 */
   lastHeartRegenAtMs: number;
+};
+
+/** 웹 BM 권한(실결제 없음 — placeholder 연동용) */
+export type BmEntitlementsState = {
+  adFree: boolean;
+  supporterTier: number;
+};
+
+/** 로비 씬 테마 등 코스메틱(퍼즐 공정성과 무관) */
+export type CosmeticsState = {
+  equippedThemeId: string;
+  ownedThemeIds: string[];
+};
+
+/** 시즌 패스 진행(표시·저장 슬롯 — 보상 룰은 후속) */
+export type PassProgressState = {
+  seasonId: string;
+  tier: number;
+  xp: number;
+  premiumUnlocked: boolean;
+};
+
+/** 특별 손님·이벤트 ID만 보관하는 가벼운 슬롯 */
+export type LiveOpsSaveState = {
+  unlockedGuestIds: string[];
+  activeEventIds: string[];
 };
 
 export type AppPersistState = {
@@ -53,4 +81,9 @@ export type AppPersistState = {
   cafeState: CafeState;
   meta: MetaRuntimeState;
   settings: SettingsState;
+  bm: BmEntitlementsState;
+  cosmetics: CosmeticsState;
+  passProgress: PassProgressState;
+  liveOps: LiveOpsSaveState;
+  ownedProductIds: string[];
 };

@@ -168,6 +168,17 @@ export function GlobalBgm() {
       const { ctx, audio } = g;
       const nextSrc = publicAssetPath(nextTrack);
 
+      const armGestureResume = () => {
+        if (gestureHandlerRef.current) return;
+        const onFirstGesture = () => {
+          void doPlay();
+          detachGestureStart();
+        };
+        gestureHandlerRef.current = onFirstGesture;
+        window.addEventListener("pointerdown", onFirstGesture, { passive: true });
+        window.addEventListener("touchstart", onFirstGesture, { passive: true });
+      };
+
       const doPlay = async () => {
         try {
           // ctx.resume()가 사용자 제스처 없이 실패하면 출력이 0이라 "BGM이 없음"처럼 들림
@@ -175,18 +186,26 @@ export function GlobalBgm() {
             await ctx.resume();
           }
           await audio.play();
-          gainFadeTo(targetVolume, FADE_IN_MS);
         } catch {
-          // 사용자 제스처 전 재생 실패 대비
-          if (gestureHandlerRef.current) return;
-          const onFirstGesture = () => {
-            void doPlay();
-            detachGestureStart();
-          };
-          gestureHandlerRef.current = onFirstGesture;
-          window.addEventListener("pointerdown", onFirstGesture, { passive: true });
-          window.addEventListener("touchstart", onFirstGesture, { passive: true });
+          armGestureResume();
+          return;
         }
+
+        // MediaElementSource → destination 경로는 AudioContext가 running일 때만 들립니다.
+        // 일부 브라우저에서는 play() Promise가 resolve된 뒤에도 잠깐 suspended인 경우가 있어,
+        // 그대로 페이드인만 하면 "클릭음만 나고 BGM은 없음"처럼 보일 수 있습니다.
+        await new Promise<void>((r) => requestAnimationFrame(() => r()));
+        await new Promise<void>((r) => requestAnimationFrame(() => r()));
+        if (ctx.state !== "running") {
+          try {
+            audio.pause();
+          } catch {
+            /* noop */
+          }
+          armGestureResume();
+          return;
+        }
+        gainFadeTo(targetVolume, FADE_IN_MS);
       };
 
       // 같은 트랙이면 볼륨만 목표치로 보정

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { computePuzzleRewards } from "@/features/meta/rewards/computePuzzleRewards";
 import { useGameFeedback } from "@/hooks/useGameFeedback";
 import { useAppStore } from "@/stores/useAppStore";
+import { useLobbyFxStore } from "@/stores/useLobbyFxStore";
 import { useLockDocumentScroll } from "../hooks/useLockDocumentScroll";
 import { usePreventTouchScroll } from "../hooks/usePreventTouchScroll";
 import { usePuzzleKeyboard } from "../hooks/usePuzzleKeyboard";
@@ -103,6 +104,13 @@ export function PuzzleScreen() {
       score: resultPayload.score,
       highestTile: resultPayload.highestTile,
     });
+    const prog = useAppStore.getState().puzzleProgress;
+    useLobbyFxStore.getState().setPuzzleHotspotHints({
+      roast: prog.lastRunBeans > 0,
+      counter: prog.lastRunCoins > 0,
+    });
+    // 로비 HUD로 “보상이 흘러 들어오는” 1회 연출 트리거
+    useLobbyFxStore.getState().pingPuzzleRewards(resultPayload.rewards);
     router.push("/lobby");
   }, [applyOutcome, resultPayload, router]);
 

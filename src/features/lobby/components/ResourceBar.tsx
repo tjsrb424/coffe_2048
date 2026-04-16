@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { AnimatedNumber } from "@/components/common/AnimatedNumber";
 import { useAppStore } from "@/stores/useAppStore";
+import { useLobbyFxStore } from "@/stores/useLobbyFxStore";
 
 function formatMMSS(totalSec: number): string {
   const s = Math.max(0, Math.floor(totalSec));
@@ -12,17 +13,30 @@ function formatMMSS(totalSec: number): string {
   return `${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
 }
 
-export function ResourceBar() {
+export function ResourceBar({
+  variant = "default",
+}: {
+  variant?: "default" | "compact";
+}) {
   const coins = useAppStore((s) => s.playerResources.coins);
   const beans = useAppStore((s) => s.playerResources.beans);
   const hearts = useAppStore((s) => s.playerResources.hearts);
   const lastHeartAt = useAppStore((s) => s.meta.lastHeartRegenAtMs);
 
+  const reduceMotion = !!useReducedMotion();
+  const rewardPulse = useLobbyFxStore((s) => s.puzzleRewardPulse);
+  const clearRewards = useLobbyFxStore((s) => s.clearPuzzleRewards);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
   }, []);
+  useEffect(() => {
+    if (!rewardPulse) return;
+    // 1회성 HUD 펄스: 잠깐 보여주고 자동 해제
+    const id = window.setTimeout(() => clearRewards(), reduceMotion ? 450 : 1100);
+    return () => window.clearTimeout(id);
+  }, [clearRewards, reduceMotion, rewardPulse]);
 
   const heartHint = useMemo(() => {
     const MAX_HEARTS = 5;
@@ -34,32 +48,158 @@ export function ResourceBar() {
     return `다음 +1 ${formatMMSS(remainSec)}`;
   }, [hearts, lastHeartAt, now]);
 
+  if (variant === "compact") {
+    return (
+      <motion.div
+        layout={!reduceMotion}
+        className="mb-3 flex items-stretch gap-1.5 rounded-2xl bg-cream-50/85 px-2 py-2 shadow-card ring-1 ring-coffee-600/8"
+      >
+        <CompactStat
+          label="코인"
+          value={coins}
+          delta={rewardPulse?.coins ?? 0}
+          deltaKey={rewardPulse?.key}
+          reduceMotion={reduceMotion}
+        />
+        <CompactStat
+          label="원두"
+          value={beans}
+          delta={rewardPulse?.beans ?? 0}
+          deltaKey={rewardPulse?.key}
+          reduceMotion={reduceMotion}
+        />
+        <div className="relative flex min-w-0 flex-1 flex-col justify-center rounded-xl bg-cream-200/60 px-2 py-1.5 text-center ring-1 ring-coffee-600/5">
+          <div className="text-[10px] font-semibold text-coffee-600/70">하트</div>
+          <div className="text-sm font-bold tabular-nums leading-tight text-coffee-900">
+            <AnimatedNumber value={hearts} />
+          </div>
+          <RewardDelta
+            show={!!rewardPulse && (rewardPulse?.hearts ?? 0) > 0}
+            text={`+${rewardPulse?.hearts ?? 0}`}
+            accent="soft"
+            reduceMotion={reduceMotion}
+            deltaKey={rewardPulse?.key}
+          />
+          <div className="truncate text-[9px] font-medium text-coffee-600/65">
+            {heartHint}
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div
-      layout
+      layout={!reduceMotion}
       className="mb-5 grid grid-cols-3 gap-2 rounded-3xl bg-cream-50/90 p-3 shadow-card ring-1 ring-coffee-600/10"
     >
-      <div className="rounded-2xl bg-cream-200/70 px-3 py-3 text-center ring-1 ring-coffee-600/5">
+      <div className="relative rounded-2xl bg-cream-200/70 px-3 py-3 text-center ring-1 ring-coffee-600/5">
         <div className="text-[11px] font-semibold text-coffee-600/70">코인</div>
         <div className="mt-1 text-lg font-bold tabular-nums text-coffee-900">
           <AnimatedNumber value={coins} />
         </div>
+        <RewardDelta
+          show={!!rewardPulse && (rewardPulse?.coins ?? 0) > 0}
+          text={`+${rewardPulse?.coins ?? 0}`}
+          accent="soft"
+          reduceMotion={reduceMotion}
+          deltaKey={rewardPulse?.key}
+        />
       </div>
-      <div className="rounded-2xl bg-cream-200/70 px-3 py-3 text-center ring-1 ring-coffee-600/5">
+      <div className="relative rounded-2xl bg-cream-200/70 px-3 py-3 text-center ring-1 ring-coffee-600/5">
         <div className="text-[11px] font-semibold text-coffee-600/70">원두</div>
         <div className="mt-1 text-lg font-bold tabular-nums text-coffee-900">
           <AnimatedNumber value={beans} />
         </div>
+        <RewardDelta
+          show={!!rewardPulse && (rewardPulse?.beans ?? 0) > 0}
+          text={`+${rewardPulse?.beans ?? 0}`}
+          accent="mint"
+          reduceMotion={reduceMotion}
+          deltaKey={rewardPulse?.key}
+        />
       </div>
-      <div className="rounded-2xl bg-cream-200/70 px-3 py-3 text-center ring-1 ring-coffee-600/5">
+      <div className="relative rounded-2xl bg-cream-200/70 px-3 py-3 text-center ring-1 ring-coffee-600/5">
         <div className="text-[11px] font-semibold text-coffee-600/70">하트</div>
         <div className="mt-1 text-lg font-bold tabular-nums text-coffee-900">
           <AnimatedNumber value={hearts} />
         </div>
+        <RewardDelta
+          show={!!rewardPulse && (rewardPulse?.hearts ?? 0) > 0}
+          text={`+${rewardPulse?.hearts ?? 0}`}
+          accent="soft"
+          reduceMotion={reduceMotion}
+          deltaKey={rewardPulse?.key}
+        />
         <div className="mt-1 text-[10px] font-semibold text-coffee-600/70">
           {heartHint}
         </div>
       </div>
     </motion.div>
+  );
+}
+
+function CompactStat({
+  label,
+  value,
+  delta,
+  deltaKey,
+  reduceMotion,
+}: {
+  label: string;
+  value: number;
+  delta: number;
+  deltaKey?: number;
+  reduceMotion: boolean;
+}) {
+  return (
+    <div className="relative flex min-w-0 flex-1 flex-col justify-center rounded-xl bg-cream-200/60 px-2 py-1.5 text-center ring-1 ring-coffee-600/5">
+      <div className="text-[10px] font-semibold text-coffee-600/70">{label}</div>
+      <div className="text-sm font-bold tabular-nums text-coffee-900">
+        <AnimatedNumber value={value} />
+      </div>
+      <RewardDelta
+        show={delta > 0}
+        text={`+${delta}`}
+        accent={label === "원두" ? "mint" : "soft"}
+        reduceMotion={reduceMotion}
+        deltaKey={deltaKey}
+      />
+    </div>
+  );
+}
+
+function RewardDelta({
+  show,
+  text,
+  accent,
+  reduceMotion,
+  deltaKey,
+}: {
+  show: boolean;
+  text: string;
+  accent: "soft" | "mint";
+  reduceMotion: boolean;
+  deltaKey?: number;
+}) {
+  return (
+    <AnimatePresence>
+      {show && (
+        <motion.div
+          key={deltaKey}
+          initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 6, scale: 0.96 }}
+          animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: -10, scale: 1 }}
+          exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -18, scale: 0.98 }}
+          transition={reduceMotion ? { duration: 0.18 } : { duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          className={`pointer-events-none absolute left-1/2 top-1 -translate-x-1/2 rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums shadow-sm ring-1 ${
+            accent === "mint"
+              ? "bg-accent-mint/25 text-coffee-900 ring-accent-mint/45"
+              : "bg-accent-soft/20 text-coffee-900 ring-accent-soft/40"
+          }`}
+        >
+          {text}
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

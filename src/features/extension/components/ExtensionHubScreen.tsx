@@ -1,10 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
-import { BottomNav } from "@/components/layout/BottomNav";
 import { CafeUpgradesCard } from "@/features/menu/components/CafeUpgradesCard";
 import { ResourceBar } from "@/features/lobby/components/ResourceBar";
 import { useResetDocumentScrollOnMount } from "@/hooks/useResetDocumentScrollOnMount";
+import { LiveOpsPlaceholderSection } from "./LiveOpsPlaceholderSection";
 
 export function ExtensionHubScreen() {
   useResetDocumentScrollOnMount();
@@ -14,22 +15,36 @@ export function ExtensionHubScreen() {
       <AppShell>
         <header className="mb-5">
           <p className="text-xs font-semibold uppercase tracking-wide text-coffee-600/60">
-            Extend
+            Grow
           </p>
-          <h1 className="text-3xl font-bold tracking-tight text-coffee-900">
-            확장
+          <h1 className="text-2xl font-bold tracking-tight text-coffee-900">
+            매장이 자라는 방식
           </h1>
           <p className="mt-2 text-sm leading-relaxed text-coffee-700">
-            코인으로 설비를 올리면 로스팅·진열·분위기가 함께 살아나요. 매장
-            레벨은 세 트랙 합으로 자동 반영돼요.
+            로비에서 모은 코인으로 설비를 다듬고, 시즌과 손님 이야기는 천천히
+            쌓여 가요. 바쁜 시트 대신, 여긴 조금 느린 메모장 같은 곳이에요.
+          </p>
+          <p className="mt-2 text-xs text-coffee-600/75">
+            <Link
+              href="/lobby"
+              className="font-semibold underline-offset-2 hover:underline"
+            >
+              로비로
+            </Link>
           </p>
         </header>
 
-        <ResourceBar />
+        <ResourceBar variant="compact" />
 
-        <CafeUpgradesCard />
+        <LiveOpsPlaceholderSection />
+
+        <div className="mt-8">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-coffee-600/60">
+            설비 성장
+          </p>
+          <CafeUpgradesCard />
+        </div>
       </AppShell>
-      <BottomNav />
     </>
   );
 }

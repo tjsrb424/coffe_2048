@@ -1,7 +1,7 @@
 "use client";
 
+import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
-import { BottomNav } from "@/components/layout/BottomNav";
 import { Card } from "@/components/ui/Card";
 import { useGameFeedback } from "@/hooks/useGameFeedback";
 import { useResetDocumentScrollOnMount } from "@/hooks/useResetDocumentScrollOnMount";
@@ -25,6 +25,22 @@ export function SettingsHubScreen() {
             사운드·햅틱·모션은 여기서 조용히 맞춰요.
           </p>
         </header>
+
+        <Card className="mb-4 p-4">
+          <div className="text-xs font-semibold uppercase tracking-wide text-coffee-600/60">
+            웹 상점
+          </div>
+          <p className="mt-2 text-sm text-coffee-800">
+            테마·광고 제거 등 placeholder 결제는 상점 화면에서 테스트해요.
+          </p>
+          <Link
+            href="/shop"
+            className="mt-3 inline-block text-sm font-semibold text-coffee-900 underline-offset-2 hover:underline"
+            onClick={() => lightTap()}
+          >
+            상점 열기
+          </Link>
+        </Card>
 
         <Card className="space-y-3">
           <ToggleRow
@@ -50,7 +66,6 @@ export function SettingsHubScreen() {
           />
         </Card>
       </AppShell>
-      <BottomNav />
     </>
   );
 }

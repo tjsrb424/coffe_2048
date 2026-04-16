@@ -13,7 +13,13 @@
     "build:safe": "npm run check:tw && npm run build:clean",
     "start": "next start",
     "lint": "eslint .",
-    "check:tw": "node scripts/check-tailwind-risk.js"
+    "check:tw": "node scripts/check-tailwind-risk.js",
+    "typecheck": "tsc --noEmit",
+    "test:visual": "playwright test",
+    "test:visual:update": "playwright test --update-snapshots",
+    "test:visual:headed": "playwright test --headed",
+    "test:visual:ui": "playwright test --ui",
+    "test:visual:report": "playwright show-report"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -27,6 +33,7 @@
   "devDependencies": {
     "@eslint/compat": "^2.0.5",
     "@eslint/eslintrc": "^3.3.5",
+    "@playwright/test": "^1.59.1",
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.1",
     "@types/react-dom": "^19.0.2",

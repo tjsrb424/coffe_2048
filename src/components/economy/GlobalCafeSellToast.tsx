@@ -4,28 +4,45 @@ import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useCafeAutoSell } from "@/features/lobby/hooks/useCafeAutoSell";
 import { useLobbyFxStore } from "@/stores/useLobbyFxStore";
+import { useCustomerStore } from "@/stores/useCustomerStore";
 
 /**
  * 카페 자동 판매 틱 + 코인 토스트. 모든 주요 라우트에서 마운트되도록 template에 둔다.
  */
 export function GlobalCafeSellToast() {
+  const recordCafeSale = useCustomerStore((s) => s.recordCafeSale);
   const [coinToast, setCoinToast] = useState<{
     amount: number;
     kind: "online" | "offline";
+    soldCount: number;
   } | null>(null);
 
-  const onCoinsEarned = useCallback((amount: number) => {
+  const onCoinsEarned = useCallback((input: { gainedCoins: number; soldCount: number }) => {
     useLobbyFxStore.getState().pingPurchase("online");
-    setCoinToast({ amount, kind: "online" });
-  }, []);
+    useLobbyFxStore.getState().pingCafeSell({
+      gainedCoins: input.gainedCoins,
+      soldCount: input.soldCount,
+      kind: "online",
+    });
+    // 고객 애정도 데이터 훅(최소 연결): 판매 발생 → 애정도 누적
+    recordCafeSale({ soldCount: input.soldCount });
+    setCoinToast({ amount: input.gainedCoins, kind: "online", soldCount: input.soldCount });
+  }, [recordCafeSale]);
 
   const onOfflineSettled = useCallback(
     (input: { gainedCoins: number; soldCount: number }) => {
       if (input.gainedCoins <= 0) return;
       useLobbyFxStore.getState().pingPurchase("offline");
-      setCoinToast({ amount: input.gainedCoins, kind: "offline" });
+      useLobbyFxStore.getState().pingCafeSell({
+        gainedCoins: input.gainedCoins,
+        soldCount: input.soldCount,
+        kind: "offline",
+      });
+      // 오프라인 정산도 판매 누적으로 취급(표시는 UI 추가 금지)
+      recordCafeSale({ soldCount: input.soldCount });
+      setCoinToast({ amount: input.gainedCoins, kind: "offline", soldCount: input.soldCount });
     },
-    [],
+    [recordCafeSale],
   );
 
   useCafeAutoSell({ onCoinsEarned, onOfflineSettled });

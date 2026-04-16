@@ -8,7 +8,10 @@ import { useAppStore } from "@/stores/useAppStore";
  */
 export function useReducedMotionPreference(): boolean {
   const userPref = useAppStore((s) => s.settings.reducedMotion);
-  const [systemPref, setSystemPref] = useState(false);
+  const [systemPref, setSystemPref] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  });
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");

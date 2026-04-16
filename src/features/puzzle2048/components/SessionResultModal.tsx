@@ -90,16 +90,39 @@ export function SessionResultModal({
             </div>
 
             <div className="mt-4 rounded-2xl bg-coffee-900/5 px-3 py-3 ring-1 ring-coffee-600/10">
-              <div className="text-xs font-semibold text-coffee-600/70">획득 예정</div>
-              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm font-bold tabular-nums text-coffee-900">
-                <span>코인 +{payload.rewards.coins}</span>
-                <span>원두 +{payload.rewards.beans}</span>
-                <span>하트 +{payload.rewards.hearts}</span>
+              <div className="text-xs font-semibold text-coffee-600/70">
+                로비에 들어오면 적용
+              </div>
+              <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-2xl bg-cream-50/70 px-2 py-2 ring-1 ring-coffee-600/10">
+                  <div className="text-[10px] font-semibold text-coffee-600/70">
+                    코인
+                  </div>
+                  <div className="mt-0.5 text-base font-bold tabular-nums text-accent-soft">
+                    +{payload.rewards.coins}
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-cream-50/70 px-2 py-2 ring-1 ring-coffee-600/10">
+                  <div className="text-[10px] font-semibold text-coffee-600/70">
+                    원두
+                  </div>
+                  <div className="mt-0.5 text-base font-bold tabular-nums text-accent-mint">
+                    +{payload.rewards.beans}
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-cream-50/70 px-2 py-2 ring-1 ring-coffee-600/10">
+                  <div className="text-[10px] font-semibold text-coffee-600/70">
+                    하트
+                  </div>
+                  <div className="mt-0.5 text-base font-bold tabular-nums text-coffee-900">
+                    +{payload.rewards.hearts}
+                  </div>
+                </div>
               </div>
             </div>
 
             <p className="mt-3 text-xs leading-relaxed text-coffee-600/85">
-              로비로 가면 위 보상이 적용돼요.
+              로비 HUD로 보상이 흘러 들어가요.
             </p>
 
             <div className="mt-5 flex flex-col gap-2">

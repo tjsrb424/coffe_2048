@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 type Customer = {
@@ -37,12 +37,14 @@ export function LobbyAmbientCustomers({
   purchaseKind?: "online" | "offline";
 }) {
   const [items, setItems] = useState<Customer[]>([]);
+  const reduceMotion = useReducedMotion();
 
   const lanes = useMemo(() => [18, 44, 70], []);
   const spawnEveryMs = Math.max(900, 2600 - density * 360);
   const lastPurchaseRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
+    if (reduceMotion) return;
     let mounted = true;
     const spawn = () => {
       if (!mounted) return;
@@ -72,9 +74,10 @@ export function LobbyAmbientCustomers({
       mounted = false;
       window.clearInterval(id);
     };
-  }, [lanes.length, spawnEveryMs]);
+  }, [lanes.length, reduceMotion, spawnEveryMs]);
 
   useEffect(() => {
+    if (reduceMotion) return;
     if (purchasePulse == null) return;
     if (lastPurchaseRef.current === purchasePulse) return;
     lastPurchaseRef.current = purchasePulse;
@@ -95,7 +98,7 @@ export function LobbyAmbientCustomers({
     window.setTimeout(() => {
       setItems((prev) => prev.filter((x) => x.id !== c.id));
     }, lifetimeMs + 350);
-  }, [lanes.length, purchaseKind, purchasePulse]);
+  }, [lanes.length, purchaseKind, purchasePulse, reduceMotion]);
 
   return (
     <div

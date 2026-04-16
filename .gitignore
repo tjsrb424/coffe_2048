@@ -6,3 +6,6 @@ dist
 .env*.local
 .vercel
 .DS_Store
+playwright-report/
+test-results/
+tsconfig.tsbuildinfo

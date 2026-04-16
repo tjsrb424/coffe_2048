@@ -7,8 +7,8 @@ import { cn } from "@/lib/utils";
 
 const items = [
   { href: "/lobby", label: "로비" },
-  { href: "/cafe", label: "카페" },
-  { href: "/extension", label: "확장" },
+  { href: "/cafe", label: "운영" },
+  { href: "/extension", label: "성장" },
   { href: "/settings", label: "설정" },
 ] as const;
 

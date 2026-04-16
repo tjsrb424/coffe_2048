@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { ShowcaseMenuScreen } from "@/features/menu/components/ShowcaseMenuScreen";
 
-export default function MenuRedirectPage() {
-  redirect("/settings");
+export default function MenuPage() {
+  return <ShowcaseMenuScreen />;
 }

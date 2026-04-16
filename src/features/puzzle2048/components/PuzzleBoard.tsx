@@ -54,7 +54,10 @@ export function PuzzleBoard() {
             className="relative shrink-0 will-change-transform"
             style={{ width: side, height: side }}
           >
-            <div className="relative h-full w-full overflow-hidden rounded-[1.15rem] ring-1 ring-coffee-900/10 ring-inset sm:rounded-[1.35rem]">
+            <div
+              data-testid="puzzle-board-visual-mask"
+              className="relative h-full w-full overflow-hidden rounded-[1.15rem] ring-1 ring-coffee-900/10 ring-inset sm:rounded-[1.35rem]"
+            >
               <div
                 className="grid h-full w-full grid-cols-4 rounded-3xl bg-coffee-900/10 shadow-inner"
                 style={{

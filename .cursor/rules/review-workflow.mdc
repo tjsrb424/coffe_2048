@@ -1,0 +1,53 @@
+---
+description: Coffee 2048 delivery and review workflow
+globs:
+alwaysApply: true
+---
+
+You are working on Coffee 2048, a web-first cozy puzzle + cafe management game.
+
+Core project rules:
+- Keep the existing docs as the source of truth.
+- Do not change product direction silently.
+- Respect the lobby direction: fixed camera, touch-first hotspot management, not direct character movement.
+- Preserve premium, calm, cozy, high-end feel.
+- Prefer small, safe changes over broad refactors.
+
+For every meaningful task, follow this order:
+
+1. Restate the task in 3-5 bullets.
+2. Identify the exact files to change before editing.
+3. Keep the change scoped.
+4. If the task is unclear, analyze first instead of editing immediately.
+5. After implementation, run and report:
+   - lint
+   - typecheck
+   - build
+   - relevant tests
+6. If UI changed, also report:
+   - affected routes
+   - desktop/mobile impact
+   - likely regression points
+7. Never finish without a completion report.
+
+Required completion report format:
+
+# 완료 보고
+## 작업 목표
+## 변경 파일
+## 핵심 변경 사항
+## 테스트 결과
+- lint:
+- typecheck:
+- build:
+- test:
+## 영향 화면
+## 리스크 / 미확인 항목
+## 다음 추천 작업 3개
+
+Additional rules:
+- Do not mix feature work and polish work unless explicitly requested.
+- Do not refactor unrelated files.
+- Keep puzzle engine logic separated from UI.
+- Prefer testable pure functions for puzzle logic.
+- If a task touches docs, use the real current filenames in this repository.

@@ -1,28 +1,40 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { LOBBY_COPY } from "@/features/meta/balance/constants";
 import { useAppStore } from "@/stores/useAppStore";
 import { useGameFeedback } from "@/hooks/useGameFeedback";
 
-export function LobbyMainCard() {
+export function LobbyMainCard({
+  onBeforeNavigateToPuzzle,
+}: {
+  /** 퍼즐로 떠나기 직전(예: 로비 시트 닫기) */
+  onBeforeNavigateToPuzzle?: () => void;
+} = {}) {
   const router = useRouter();
   const cafe = useAppStore((s) => s.cafeState);
   const beans = useAppStore((s) => s.playerResources.beans);
   const hearts = useAppStore((s) => s.playerResources.hearts);
   const consumeHeart = useAppStore((s) => s.consumePuzzleHeart);
   const { lightTap } = useGameFeedback();
+  const reduceMotion = useReducedMotion();
 
   return (
     <Card className="relative mb-5 overflow-hidden">
       <motion.div
         aria-hidden
         className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-accent-soft/20 blur-2xl"
-        animate={{ opacity: [0.45, 0.75, 0.45] }}
-        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+        animate={
+          reduceMotion ? { opacity: 0.6 } : { opacity: [0.45, 0.75, 0.45] }
+        }
+        transition={
+          reduceMotion
+            ? { duration: 0 }
+            : { duration: 6, repeat: Infinity, ease: "easeInOut" }
+        }
       />
       <div className="relative">
         <p className="text-xs font-semibold uppercase tracking-wide text-coffee-600/60">
@@ -42,6 +54,7 @@ export function LobbyMainCard() {
             onClick={() => {
               lightTap();
               if (!consumeHeart()) return;
+              onBeforeNavigateToPuzzle?.();
               // 퍼즐 진입은 BGM이 감성적으로 페이드아웃되도록 살짝 텀을 둠
               window.dispatchEvent(
                 new CustomEvent("coffee:request-bgm-fadeout", { detail: { ms: 1200 } }),

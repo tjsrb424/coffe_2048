@@ -19,9 +19,13 @@ import { computePuzzleRewards } from "@/features/meta/rewards/computePuzzleRewar
 import { STORAGE_KEY } from "@/features/meta/storage/storageKeys";
 import type {
   AppPersistState,
+  BmEntitlementsState,
   CafeState,
+  CosmeticsState,
   DrinkMenuId,
+  LiveOpsSaveState,
   MetaRuntimeState,
+  PassProgressState,
   PlayerResources,
   PuzzleProgress,
   SettingsState,
@@ -61,10 +65,33 @@ const defaultSettings: SettingsState = {
   soundOn: true,
   vibrationOn: true,
   reducedMotion: false,
+  lobbyOnboardingSeen: false,
 };
 
 const defaultMeta: MetaRuntimeState = {
   lastHeartRegenAtMs: 0,
+};
+
+const defaultBm: BmEntitlementsState = {
+  adFree: false,
+  supporterTier: 0,
+};
+
+const defaultCosmetics: CosmeticsState = {
+  equippedThemeId: "default",
+  ownedThemeIds: ["default"],
+};
+
+const defaultPassProgress: PassProgressState = {
+  seasonId: "s0",
+  tier: 0,
+  xp: 0,
+  premiumUnlocked: false,
+};
+
+const defaultLiveOps: LiveOpsSaveState = {
+  unlockedGuestIds: [],
+  activeEventIds: [],
 };
 
 const defaultState: AppPersistState = {
@@ -73,6 +100,11 @@ const defaultState: AppPersistState = {
   cafeState: defaultCafe,
   meta: defaultMeta,
   settings: defaultSettings,
+  bm: defaultBm,
+  cosmetics: defaultCosmetics,
+  passProgress: defaultPassProgress,
+  liveOps: defaultLiveOps,
+  ownedProductIds: [],
 };
 
 export type AppStore = AppPersistState & {
@@ -112,6 +144,17 @@ export type AppStore = AppPersistState & {
   consumePuzzleHeart: () => boolean;
   /** 하트 자동 회복 틱 — 회복량 반환 */
   stepHeartRegen: (nowMs: number) => { gainedHearts: number; ticks: number };
+  patchBm: (patch: Partial<BmEntitlementsState>) => void;
+  patchCosmetics: (patch: Partial<CosmeticsState>) => void;
+  /** 소유한 테마만 장착 */
+  equipThemeIfOwned: (themeId: string) => boolean;
+  /** 상점 placeholder: 상품 ID 기록 + 테마 해금(실결제 없음) */
+  grantPlaceholderProduct: (input: {
+    productId: string;
+    unlockThemeIds?: string[];
+  }) => void;
+  patchPassProgress: (patch: Partial<PassProgressState>) => void;
+  patchLiveOps: (patch: Partial<LiveOpsSaveState>) => void;
 };
 
 function mergePersisted(persisted: unknown, current: AppStore): AppStore {
@@ -144,6 +187,57 @@ function mergePersisted(persisted: unknown, current: AppStore): AppStore {
       ...current.settings,
       ...p.settings,
     },
+    bm: {
+      ...defaultBm,
+      ...current.bm,
+      ...(p.bm ?? {}),
+    },
+    cosmetics: (() => {
+      const merged: CosmeticsState = {
+        ...defaultCosmetics,
+        ...current.cosmetics,
+        ...(p.cosmetics ?? {}),
+        ownedThemeIds: Array.from(
+          new Set([
+            ...defaultCosmetics.ownedThemeIds,
+            ...(current.cosmetics?.ownedThemeIds ?? []),
+            ...(p.cosmetics?.ownedThemeIds ?? []),
+          ]),
+        ),
+      };
+      if (!merged.ownedThemeIds.includes(merged.equippedThemeId)) {
+        merged.equippedThemeId = "default";
+      }
+      return merged;
+    })(),
+    passProgress: {
+      ...defaultPassProgress,
+      ...current.passProgress,
+      ...(p.passProgress ?? {}),
+    },
+    liveOps: {
+      ...defaultLiveOps,
+      ...current.liveOps,
+      ...(p.liveOps ?? {}),
+      unlockedGuestIds: Array.from(
+        new Set([
+          ...(current.liveOps?.unlockedGuestIds ?? []),
+          ...(p.liveOps?.unlockedGuestIds ?? []),
+        ]),
+      ),
+      activeEventIds: Array.from(
+        new Set([
+          ...(current.liveOps?.activeEventIds ?? []),
+          ...(p.liveOps?.activeEventIds ?? []),
+        ]),
+      ),
+    },
+    ownedProductIds: Array.from(
+      new Set([
+        ...(current.ownedProductIds ?? []),
+        ...(p.ownedProductIds ?? []),
+      ]),
+    ),
   };
 }
 
@@ -328,6 +422,11 @@ export const useAppStore = create<AppStore>()(
           cafeState: s.cafeState,
           meta: s.meta,
           settings: s.settings,
+          bm: s.bm,
+          cosmetics: s.cosmetics,
+          passProgress: s.passProgress,
+          liveOps: s.liveOps,
+          ownedProductIds: s.ownedProductIds,
         };
       },
       importSave: (data) => {
@@ -339,7 +438,13 @@ export const useAppStore = create<AppStore>()(
           playerResources: merged.playerResources,
           puzzleProgress: merged.puzzleProgress,
           cafeState: merged.cafeState,
+          meta: merged.meta,
           settings: merged.settings,
+          bm: merged.bm,
+          cosmetics: merged.cosmetics,
+          passProgress: merged.passProgress,
+          liveOps: merged.liveOps,
+          ownedProductIds: merged.ownedProductIds,
         });
         return true;
       },
@@ -350,6 +455,51 @@ export const useAppStore = create<AppStore>()(
           settings: prev.settings,
         });
       },
+      patchBm: (patch) =>
+        set((s) => ({ bm: { ...s.bm, ...patch } })),
+      patchCosmetics: (patch) =>
+        set((s) => {
+          const next: CosmeticsState = {
+            ...s.cosmetics,
+            ...patch,
+            ownedThemeIds: patch.ownedThemeIds ?? s.cosmetics.ownedThemeIds,
+          };
+          if (!next.ownedThemeIds.includes(next.equippedThemeId)) {
+            next.equippedThemeId = "default";
+          }
+          return { cosmetics: next };
+        }),
+      equipThemeIfOwned: (themeId) => {
+        const prev = get();
+        if (!prev.cosmetics.ownedThemeIds.includes(themeId)) return false;
+        set({ cosmetics: { ...prev.cosmetics, equippedThemeId: themeId } });
+        return true;
+      },
+      grantPlaceholderProduct: ({ productId, unlockThemeIds = [] }) => {
+        const prev = get();
+        const owned = new Set(prev.ownedProductIds);
+        owned.add(productId);
+        const themes = new Set(prev.cosmetics.ownedThemeIds);
+        for (const id of unlockThemeIds) themes.add(id);
+        set({
+          ownedProductIds: Array.from(owned),
+          cosmetics: { ...prev.cosmetics, ownedThemeIds: Array.from(themes) },
+        });
+      },
+      patchPassProgress: (patch) =>
+        set((s) => ({
+          passProgress: { ...s.passProgress, ...patch },
+        })),
+      patchLiveOps: (patch) =>
+        set((s) => ({
+          liveOps: {
+            ...s.liveOps,
+            ...patch,
+            unlockedGuestIds:
+              patch.unlockedGuestIds ?? s.liveOps.unlockedGuestIds,
+            activeEventIds: patch.activeEventIds ?? s.liveOps.activeEventIds,
+          },
+        })),
       consumePuzzleHeart: () => {
         const prev = get();
         if (prev.playerResources.hearts <= 0) return false;
