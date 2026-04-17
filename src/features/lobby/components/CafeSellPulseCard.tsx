@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { Card } from "@/components/ui/Card";
+import { t } from "@/locale/i18n";
 import { useLobbyFxStore } from "@/stores/useLobbyFxStore";
 
 export function CafeSellPulseCard() {
@@ -9,24 +10,25 @@ export function CafeSellPulseCard() {
 
   if (!pulse) return null;
 
+  const line =
+    pulse.kind === "offline"
+      ? t("sellPulse.lineOffline", {
+          sold: pulse.soldCount,
+          coins: pulse.gainedCoins,
+        })
+      : t("sellPulse.lineOnline", {
+          sold: pulse.soldCount,
+          coins: pulse.gainedCoins,
+        });
+
   return (
     <Card className="mb-4 overflow-hidden p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-xs font-semibold uppercase tracking-wide text-coffee-600/60">
-            카운터 소식
+            {t("sellPulse.heading")}
           </div>
-          <p className="mt-2 text-sm leading-relaxed text-coffee-800">
-            {pulse.kind === "offline" ? "자리를 비운 사이" : "방금"}{" "}
-            <span className="font-semibold tabular-nums text-coffee-900">
-              {pulse.soldCount}
-            </span>
-            잔이 나가서{" "}
-            <span className="font-semibold tabular-nums text-accent-soft">
-              +{pulse.gainedCoins}
-            </span>
-            코인이 들어왔어요.
-          </p>
+          <p className="mt-2 text-sm leading-relaxed text-coffee-800">{line}</p>
         </div>
         <AnimatePresence>
           <motion.div
@@ -39,7 +41,7 @@ export function CafeSellPulseCard() {
           >
             +{pulse.gainedCoins}
             <div className="mt-0.5 text-[10px] font-medium text-cream-50/80">
-              코인
+              {t("sellPulse.coinLabel")}
             </div>
           </motion.div>
         </AnimatePresence>
@@ -47,4 +49,3 @@ export function CafeSellPulseCard() {
     </Card>
   );
 }
-

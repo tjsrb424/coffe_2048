@@ -1,4 +1,5 @@
 import type { DrinkMenuId } from "@/features/meta/types/gameState";
+import type { MessageId } from "@locale/messages/ko";
 
 export type CustomerId = string;
 
@@ -12,15 +13,18 @@ export type CustomerTag =
 export type CustomerStoryStep = {
   /** 고유 노드 id (콘텐츠 확장 대비) */
   id: string;
-  /** 짧은 제목 */
-  title: string;
+  /** 짧은 제목 — 표시 문자열은 메시지 사전(titleTextId)에서 */
+  titleTextId: MessageId;
   /** 해금 기준(애정도 누적) — MVP에서는 0/몇 단계만 사용 */
   unlockAtAffection: number;
 };
 
 export type CustomerProfile = {
   id: CustomerId;
-  name: string;
+  /** 표시명 — 메시지 사전 id */
+  nameTextId: MessageId;
+  /** 짧은 소개(선택, UI에 아직 없을 수 있음) */
+  introTextId?: MessageId;
   tags: CustomerTag[];
   preferredMenus: DrinkMenuId[];
   /** 초기 애정도(세이브/밸런스) */
@@ -38,4 +42,3 @@ export type CustomerRuntimeState = {
   /** 마지막 판매로 애정도 갱신 시각 */
   lastAffectionAtMs: number;
 };
-

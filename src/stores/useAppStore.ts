@@ -55,6 +55,7 @@ const defaultCafe: CafeState = {
   ambianceLevel: 1,
   espressoShots: 0,
   menuStock: defaultMenuStock(),
+  displaySellingActive: false,
   lastAutoSellAtMs: 0,
   lastOfflineSaleAtMs: 0,
   lastOfflineSaleCoins: 0,
@@ -121,7 +122,11 @@ export type AppStore = AppPersistState & {
     gainedCoins: number;
     soldCount: number;
     ticks: number;
+    /** 이번 배치 메뉴별 판매 잔 수(애정도 선호 보너스용) */
+    soldByMenu: Partial<Record<DrinkMenuId, number>>;
   };
+  /** 진열 재고가 있을 때 판매 세션 시작(이후에만 판매 틱 적용) */
+  startDisplaySelling: () => boolean;
   recordOfflineSaleSummary: (input: {
     atMs: number;
     gainedCoins: number;
@@ -318,40 +323,103 @@ export const useAppStore = create<AppStore>()(
       stepAutoSell: (nowMs) => {
         const prev = get();
         const cafe = prev.cafeState;
+        if (!cafe.displaySellingActive) {
+          return {
+            gainedCoins: 0,
+            soldCount: 0,
+            ticks: 0,
+            soldByMenu: {},
+          };
+        }
+
+        const totalStart =
+          cafe.menuStock.americano +
+          cafe.menuStock.latte +
+          cafe.menuStock.affogato;
+        if (totalStart <= 0) {
+          set({
+            cafeState: { ...cafe, displaySellingActive: false },
+          });
+          return {
+            gainedCoins: 0,
+            soldCount: 0,
+            ticks: 0,
+            soldByMenu: {},
+          };
+        }
+
         let last = cafe.lastAutoSellAtMs;
         if (last === 0) {
           set({ cafeState: { ...cafe, lastAutoSellAtMs: nowMs } });
-          return { gainedCoins: 0, soldCount: 0, ticks: 0 };
+          return {
+            gainedCoins: 0,
+            soldCount: 0,
+            ticks: 0,
+            soldByMenu: {},
+          };
         }
+
         const m = getCafeRuntimeModifiers(cafe);
         const interval = m.autoSellIntervalMs;
         const maxTicks = m.autoSellMaxTicks;
         const grossTicks = Math.min(maxTicks, Math.floor((nowMs - last) / interval));
-        if (grossTicks <= 0) return { gainedCoins: 0, soldCount: 0, ticks: 0 };
+        if (grossTicks <= 0)
+          return { gainedCoins: 0, soldCount: 0, ticks: 0, soldByMenu: {} };
 
         let menuStock = { ...cafe.menuStock };
         let coins = prev.playerResources.coins;
         let gained = 0;
         let soldCount = 0;
+        let executedTicks = 0;
+        const soldByMenu: Partial<Record<DrinkMenuId, number>> = {};
         for (let i = 0; i < grossTicks; i++) {
-          last += interval;
           const sold = trySellOneRoundRobin(menuStock, m.sellBonus);
-          if (sold) {
-            menuStock = sold.nextStock;
-            coins += sold.coins;
-            gained += sold.coins;
-            soldCount += 1;
-          }
+          if (!sold) break;
+          last += interval;
+          executedTicks += 1;
+          menuStock = sold.nextStock;
+          coins += sold.coins;
+          gained += sold.coins;
+          soldCount += 1;
+          soldByMenu[sold.id] = (soldByMenu[sold.id] ?? 0) + 1;
         }
+
+        const remaining =
+          menuStock.americano + menuStock.latte + menuStock.affogato;
+
         set({
           playerResources: { ...prev.playerResources, coins },
           cafeState: {
             ...cafe,
             menuStock,
             lastAutoSellAtMs: last,
+            displaySellingActive: remaining > 0,
           },
         });
-        return { gainedCoins: gained, soldCount, ticks: grossTicks };
+        return {
+          gainedCoins: gained,
+          soldCount,
+          ticks: executedTicks,
+          soldByMenu,
+        };
+      },
+      startDisplaySelling: () => {
+        const prev = get();
+        const cafe = prev.cafeState;
+        const total =
+          cafe.menuStock.americano +
+          cafe.menuStock.latte +
+          cafe.menuStock.affogato;
+        if (total <= 0) return false;
+        if (cafe.displaySellingActive) return true;
+        set({
+          cafeState: {
+            ...cafe,
+            displaySellingActive: true,
+            lastAutoSellAtMs: Date.now(),
+          },
+        });
+        return true;
       },
       recordOfflineSaleSummary: ({ atMs, gainedCoins, soldCount }) => {
         const prev = get();

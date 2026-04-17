@@ -26,8 +26,13 @@ export type CafeState = {
   ambianceLevel: number;
   /** 로스터 추출 베이스(샷). 음료 제작에 소모돼요. */
   espressoShots: number;
-  /** 진열 재고 — 자동 판매로 코인이 들어와요. */
+  /** 진열 재고 — 판매 개시 후 틱마다 줄며 코인이 들어와요. */
   menuStock: MenuStock;
+  /**
+   * 진열 판매 세션. true일 때만 `stepAutoSell`이 재고를 줄이며 코인을 올린다.
+   * 유저가 쇼케이스에서「판매 개시」를 눌러 켠다.
+   */
+  displaySellingActive: boolean;
   /** 자동 판매 기준 시각(ms). 0이면 첫 진입 시 현재 시각으로만 초기화 */
   lastAutoSellAtMs: number;
   /** 마지막 오프라인 정산 기록 — 로비에서 요약 표시용 */

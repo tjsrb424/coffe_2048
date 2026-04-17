@@ -2,8 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useMemo, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/Button";
 import { getCafeRuntimeModifiers } from "@/features/meta/balance/cafeModifiers";
@@ -11,12 +10,13 @@ import { CAFE_ECONOMY, MENU_ORDER } from "@/features/meta/balance/cafeEconomy";
 import { useResetDocumentScrollOnMount } from "@/hooks/useResetDocumentScrollOnMount";
 import type { LobbySheetId } from "@/features/lobby/config/lobbyHotspots";
 import {
-  LOBBY_SHEET_BODY_INTRO,
-  LOBBY_SHEET_DESCRIPTION,
-  LOBBY_SHEET_TAGLINE,
-  LOBBY_SHEET_TITLE,
+  LOBBY_SHEET_BODY_INTRO_ID,
+  LOBBY_SHEET_DESCRIPTION_ID,
+  LOBBY_SHEET_TAGLINE_ID,
+  LOBBY_SHEET_TITLE_ID,
 } from "@/features/lobby/config/lobbySheetCopy";
 import { buildLobbySheetSummary } from "@/features/lobby/lib/lobbySheetSummary";
+import { t } from "@/locale/i18n";
 import { Card } from "@/components/ui/Card";
 import { useAppStore } from "@/stores/useAppStore";
 import {
@@ -28,7 +28,12 @@ import { LobbyBottomSheet } from "./LobbyBottomSheet";
 import { CafeSellPulseCard } from "./CafeSellPulseCard";
 import { LobbyMainCard } from "./LobbyMainCard";
 import { OfflineSalesCard } from "./OfflineSalesCard";
+import {
+  LobbyTodayGuestLine,
+  CounterSheetTodayGuestHint,
+} from "@/features/customers/components/CustomerPresenceHints";
 import { ResourceBar } from "./ResourceBar";
+import { LobbyPanelQuerySync } from "./LobbyPanelQuerySync";
 
 type OpenSheet = {
   sheet: LobbySheetId;
@@ -37,7 +42,6 @@ type OpenSheet = {
 
 export function LobbyScreen() {
   useResetDocumentScrollOnMount();
-  const searchParams = useSearchParams();
   const lobbyOnboardingSeen = useAppStore(
     (s) => s.settings?.lobbyOnboardingSeen ?? false,
   );
@@ -48,18 +52,9 @@ export function LobbyScreen() {
 
   const [open, setOpen] = useState<OpenSheet>(null);
 
-  useEffect(() => {
-    if (searchParams.get("panel") === "cafe") {
-      setOpen({ sheet: "showcase", cafeSections: ["craft", "display"] });
-      if (typeof window !== "undefined") {
-        const base = (process.env.NEXT_PUBLIC_BASE_PATH ?? "").replace(
-          /\/$/,
-          "",
-        );
-        window.history.replaceState(null, "", `${base}/lobby/`);
-      }
-    }
-  }, [searchParams]);
+  const openCafeFromQuery = useCallback(() => {
+    setOpen({ sheet: "showcase", cafeSections: ["craft", "display"] });
+  }, []);
 
   const openSheet = useCallback(
     (sheet: LobbySheetId, cafeSections?: CafeLoopSectionKey[]) =>
@@ -69,9 +64,13 @@ export function LobbyScreen() {
 
   const closeSheet = useCallback(() => setOpen(null), []);
 
-  const title = open ? LOBBY_SHEET_TITLE[open.sheet] : "";
-  const tagline = open ? LOBBY_SHEET_TAGLINE[open.sheet] : undefined;
-  const description = open ? LOBBY_SHEET_DESCRIPTION[open.sheet] : undefined;
+  const title = open ? t(LOBBY_SHEET_TITLE_ID[open.sheet]) : "";
+  const tagline = open ? t(LOBBY_SHEET_TAGLINE_ID[open.sheet]) : undefined;
+  const description = open
+    ? LOBBY_SHEET_DESCRIPTION_ID[open.sheet]
+      ? t(LOBBY_SHEET_DESCRIPTION_ID[open.sheet]!)
+      : undefined
+    : undefined;
 
   const summary = useMemo(() => {
     if (!open) return "";
@@ -95,54 +94,60 @@ export function LobbyScreen() {
     const shots = cafeState.espressoShots;
     for (const id of MENU_ORDER) {
       const r = CAFE_ECONOMY.recipe[id];
-      if (shots >= r.shots && beans >= r.beans) return "제작 가능";
+      if (shots >= r.shots && beans >= r.beans) return t("lobby.ops.craftHint.craftable");
     }
-    return shots < 1 ? "베이스 부족" : "자원 부족";
+    return shots < 1
+      ? t("lobby.ops.craftHint.baseShort")
+      : t("lobby.ops.craftHint.resourceShort");
   }, [cafeState.espressoShots, playerResources.beans]);
 
   return (
     <>
-      <AppShell>
-        <header className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <div className="relative h-14 w-[240px] sm:h-16 sm:w-[280px]">
-              <Image
-                src="/images/brand/cafe-2048-title-2.png"
-                alt="Cafe 2048"
-                fill
-                priority
-                sizes="280px"
-                className="object-contain"
-              />
-            </div>
-            <h1 className="sr-only">오늘의 매장</h1>
-          </div>
-          <nav className="flex shrink-0 justify-end gap-1.5 text-[11px] font-semibold text-coffee-700">
+      <Suspense fallback={null}>
+        <LobbyPanelQuerySync onCafePanelFromQuery={openCafeFromQuery} />
+      </Suspense>
+      <AppShell className="pt-4 sm:pt-5">
+        <header className="mb-3 flex flex-col gap-2.5">
+          <nav className="flex w-full shrink-0 justify-end gap-2 text-[11px] font-semibold text-coffee-700">
             <Link
               href="/settings"
-              className="rounded-full bg-cream-200/80 px-2.5 py-1 ring-1 ring-coffee-600/10 hover:bg-cream-200"
+              className="rounded-full bg-cream-200/80 px-2.5 py-1.5 ring-1 ring-coffee-600/10 hover:bg-cream-200"
             >
-              설정
+              {t("nav.settings")}
             </Link>
             <Link
               href="/shop"
-              className="rounded-full bg-cream-200/80 px-2.5 py-1 ring-1 ring-coffee-600/10 hover:bg-cream-200"
+              className="rounded-full bg-cream-200/80 px-2.5 py-1.5 ring-1 ring-coffee-600/10 hover:bg-cream-200"
             >
-              상점
+              {t("nav.shop")}
             </Link>
             <Link
               href="/menu"
-              className="rounded-full bg-cream-200/80 px-2.5 py-1 ring-1 ring-coffee-600/10 hover:bg-cream-200"
+              className="rounded-full bg-cream-200/80 px-2.5 py-1.5 ring-1 ring-coffee-600/10 hover:bg-cream-200"
             >
-              메뉴
+              {t("nav.menu")}
             </Link>
           </nav>
+          <div className="pointer-events-none flex w-full justify-center px-0.5">
+            <div className="w-full max-w-[min(100%,432px)] sm:max-w-[min(100%,468px)]">
+              <Image
+                src="/images/brand/cafe-2048-title-2.png"
+                alt="Cafe 2048"
+                width={1115}
+                height={584}
+                priority
+                sizes="(max-width: 640px) 432px, 468px"
+                className="mx-auto h-auto w-full max-h-[6.6rem] object-contain object-center drop-shadow-[0_1px_2px_rgba(62,47,35,0.12)] sm:max-h-[7.85rem]"
+              />
+            </div>
+          </div>
+          <h1 className="sr-only">{t("lobby.srOnly.todayShop")}</h1>
         </header>
 
         {!lobbyOnboardingSeen ? (
           <div className="mb-2 flex items-start gap-2 rounded-2xl bg-cream-200/50 px-3 py-2.5 ring-1 ring-accent-soft/25">
             <p className="min-w-0 flex-1 text-xs leading-relaxed text-coffee-800">
-              아래 카드에서 로스터·쇼케이스·카운터·퍼즐을 바로 열 수 있어요.
+              {t("lobby.onboarding.hint")}
             </p>
             <Button
               type="button"
@@ -150,12 +155,14 @@ export function LobbyScreen() {
               className="shrink-0 px-2 py-1 text-xs"
               onClick={() => patchSettings({ lobbyOnboardingSeen: true })}
             >
-              알겠어요
+              {t("lobby.onboarding.dismiss")}
             </Button>
           </div>
         ) : null}
 
-        <ResourceBar variant="compact" />
+        <LobbyTodayGuestLine />
+
+        <ResourceBar variant="compact" className="mb-3" />
 
         <LobbyOpsDashboard
           beans={playerResources.beans}
@@ -163,6 +170,7 @@ export function LobbyScreen() {
           bestTile={puzzleProgress.bestTile}
           shots={cafeState.espressoShots}
           menuTotalStock={menuTotalStock}
+          displaySellingActive={cafeState.displaySellingActive}
           autoSellIntervalMs={getCafeRuntimeModifiers(cafeState).autoSellIntervalMs}
           craftHint={craftableHint}
           lastOfflineCoins={cafeState.lastOfflineSaleCoins}
@@ -184,7 +192,7 @@ export function LobbyScreen() {
         {open?.sheet === "roast" && (
           <>
             <p className="mb-4 text-sm leading-relaxed text-coffee-800">
-              {LOBBY_SHEET_BODY_INTRO.roast}
+              {t(LOBBY_SHEET_BODY_INTRO_ID.roast)}
             </p>
             <CafeLoopSection sections={open.cafeSections ?? ["roast"]} />
           </>
@@ -192,7 +200,7 @@ export function LobbyScreen() {
         {open?.sheet === "showcase" && (
           <>
             <p className="mb-4 text-sm leading-relaxed text-coffee-800">
-              {LOBBY_SHEET_BODY_INTRO.showcase}
+              {t(LOBBY_SHEET_BODY_INTRO_ID.showcase)}
             </p>
             <CafeLoopSection
               sections={open.cafeSections ?? ["craft", "display"]}
@@ -202,23 +210,40 @@ export function LobbyScreen() {
         {open?.sheet === "counter" && (
           <>
             <p className="mb-4 text-sm leading-relaxed text-coffee-800">
-              {LOBBY_SHEET_BODY_INTRO.counter}
+              {t(LOBBY_SHEET_BODY_INTRO_ID.counter)}
             </p>
+            <CounterSheetTodayGuestHint />
+            {menuTotalStock > 0 && !cafeState.displaySellingActive ? (
+              <div className="mb-4 rounded-2xl border border-coffee-600/10 bg-cream-200/40 px-3.5 py-2.5 ring-1 ring-coffee-600/6">
+                <p className="text-xs leading-relaxed text-coffee-800">
+                  {t("lobby.counter.waitSell.body")}
+                </p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="mt-2 h-9 w-full text-xs font-semibold text-coffee-900"
+                  onClick={() =>
+                    setOpen({ sheet: "showcase", cafeSections: ["craft", "display"] })
+                  }
+                >
+                  {t("lobby.counter.waitSell.cta")}
+                </Button>
+              </div>
+            ) : null}
             {menuTotalStock === 0 ? (
               <Card className="mb-4 border border-accent-soft/25 bg-cream-50/95 p-4 ring-1 ring-coffee-600/8">
                 <div className="text-xs font-semibold uppercase tracking-wide text-coffee-600/60">
-                  진열이 비어 있어요
+                  {t("lobby.counter.empty.title")}
                 </div>
                 <p className="mt-2 text-sm leading-relaxed text-coffee-800">
-                  손님이 가져갈 잔이 없으면 코인이 들어오지 않아요. 쇼케이스에서
-                  메뉴를 먼저 만들어 주세요.
+                  {t("lobby.counter.empty.body")}
                 </p>
                 <Link
                   href="/lobby?panel=cafe"
                   className="mt-3 inline-flex w-full items-center justify-center rounded-2xl bg-cream-200/90 px-3 py-2.5 text-center text-xs font-semibold text-coffee-900 ring-1 ring-accent-soft/30 hover:bg-cream-200"
                   onClick={closeSheet}
                 >
-                  쇼케이스에서 메뉴 만들기
+                  {t("lobby.counter.empty.cta")}
                 </Link>
               </Card>
             ) : null}
@@ -232,7 +257,7 @@ export function LobbyScreen() {
         {open?.sheet === "puzzle" && (
           <>
             <p className="mb-4 text-sm leading-relaxed text-coffee-800">
-              {LOBBY_SHEET_BODY_INTRO.puzzle}
+              {t(LOBBY_SHEET_BODY_INTRO_ID.puzzle)}
             </p>
             <LobbyMainCard onBeforeNavigateToPuzzle={closeSheet} />
           </>
@@ -244,9 +269,9 @@ export function LobbyScreen() {
               className="font-semibold underline-offset-2 hover:underline"
               onClick={closeSheet}
             >
-              카페(스크롤형 운영)
+              {t("lobby.cafeFallback.title")}
             </Link>
-            에서도 같은 작업을 할 수 있어요.
+            {t("lobby.cafeFallback.suffix")}
           </p>
         ) : null}
       </LobbyBottomSheet>
@@ -260,6 +285,7 @@ function LobbyOpsDashboard({
   bestTile,
   shots,
   menuTotalStock,
+  displaySellingActive,
   autoSellIntervalMs,
   craftHint,
   lastOfflineCoins,
@@ -273,6 +299,7 @@ function LobbyOpsDashboard({
   bestTile: number;
   shots: number;
   menuTotalStock: number;
+  displaySellingActive: boolean;
   autoSellIntervalMs: number;
   craftHint: string;
   lastOfflineCoins: number;
@@ -283,102 +310,157 @@ function LobbyOpsDashboard({
 }) {
   const sellSec = (autoSellIntervalMs / 1000).toFixed(1);
   const showcaseStatus =
-    menuTotalStock > 0 ? `진열 ${menuTotalStock}잔` : `진열 0잔 · ${craftHint}`;
-  const counterStatus =
     menuTotalStock > 0
-      ? `판매 주기 ${sellSec}s`
-      : `진열 0잔 · 쇼케이스로 복구`;
+      ? displaySellingActive
+        ? t("lobby.ops.showcaseStatus.selling", { count: menuTotalStock })
+        : t("lobby.ops.showcaseStatus.idle", { count: menuTotalStock })
+      : t("lobby.ops.showcaseStatus.empty", { hint: craftHint });
   const offline =
-    lastOfflineCoins > 0 ? `직전 오프라인 +${lastOfflineCoins}코인` : "오늘 기록 없음";
+    lastOfflineCoins > 0
+      ? t("lobby.ops.offline.withCoins", { coins: lastOfflineCoins })
+      : t("lobby.ops.offline.none");
+
+  const cardLabelClass =
+    "text-[11px] font-semibold uppercase tracking-[0.06em] text-coffee-600/60";
+  const cardStatusClass =
+    "mt-3 text-[15px] font-semibold leading-snug tracking-tight text-coffee-900";
+  const cardDescClass =
+    "mt-2.5 text-xs leading-[1.55] text-coffee-700/80 [word-break:keep-all]";
 
   return (
-    <section className="mb-1">
-      <div className="grid grid-cols-2 gap-3">
-        <Card className="col-span-2 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-coffee-600/60">
-                퍼즐
-              </div>
-              <p className="mt-2 text-sm font-semibold text-coffee-900">
-                하트 {hearts} · 베스트 타일 {bestTile}
+    <section className="mb-2">
+      <div className="grid grid-cols-2 items-stretch gap-4 sm:gap-5">
+        <Card className="col-span-2 flex flex-col p-6 sm:p-7">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
+            <div className="min-w-0 flex-1 space-y-3">
+              <div className={cardLabelClass}>{t("lobby.card.label.puzzle")}</div>
+              <p className="text-[15px] font-semibold leading-snug text-coffee-900">
+                {t("lobby.card.puzzle.stats", { hearts, bestTile })}
               </p>
-              <p className="mt-1 text-xs leading-relaxed text-coffee-700/80">
-                원두를 모으러 한 판 들어가요.
+              <p className="text-xs leading-[1.55] text-coffee-700/80">
+                {t("lobby.card.puzzle.desc")}
               </p>
             </div>
-            <Button type="button" variant="soft" className="h-10" onClick={onOpenPuzzle}>
-              퍼즐 하기
+            <Button
+              type="button"
+              variant="soft"
+              className="h-12 w-full shrink-0 sm:h-11 sm:w-[8rem]"
+              onClick={onOpenPuzzle}
+            >
+              {t("lobby.card.puzzle.cta")}
             </Button>
           </div>
         </Card>
 
-        <Card className="p-4">
-          <div className="text-xs font-semibold uppercase tracking-wide text-coffee-600/60">
-            로스터
+        <Card className="flex min-h-[192px] flex-col p-6 sm:p-5 md:p-6">
+          <div className={cardLabelClass}>{t("lobby.card.label.roast")}</div>
+          <p className={cardStatusClass}>
+            {t("lobby.card.roast.status", { beans, shots })}
+          </p>
+          <p className={cardDescClass}>{t("lobby.card.roast.desc")}</p>
+          <div className="mt-auto pt-5">
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-12 w-full text-xs font-semibold text-coffee-900 sm:h-11"
+              onClick={onOpenRoast}
+            >
+              {t("lobby.card.roast.cta")}
+            </Button>
           </div>
-          <p className="mt-2 text-sm font-semibold text-coffee-900">
-            원두 {beans}단 · 베이스 {shots}샷
-          </p>
-          <p className="mt-1 text-xs leading-relaxed text-coffee-700/80">
-            원두를 샷으로 바꿔 제작 준비를 해요.
-          </p>
-          <Button
-            type="button"
-            variant="ghost"
-            className="mt-3 h-10 w-full text-xs font-semibold text-coffee-900"
-            onClick={onOpenRoast}
-          >
-            로스터 열기
-          </Button>
         </Card>
 
-        <Card className="p-4">
-          <div className="text-xs font-semibold uppercase tracking-wide text-coffee-600/60">
-            쇼케이스
-          </div>
-          <p className="mt-2 text-sm font-semibold text-coffee-900">{showcaseStatus}</p>
-          <p className="mt-1 text-xs leading-relaxed text-coffee-700/80">
-            가능한 카드부터 눌러 재고를 채워요.
+        <Card className="flex min-h-[192px] flex-col p-6 sm:p-5 md:p-6">
+          <div className={cardLabelClass}>{t("lobby.card.label.showcase")}</div>
+          <p className={cardStatusClass}>{showcaseStatus}</p>
+          <p className={cardDescClass}>
+            {t("lobby.card.showcase.desc1")}
+            <br className="sm:hidden" />
+            {t("lobby.card.showcase.desc2")}
           </p>
-          <Button
-            type="button"
-            variant="soft"
-            className="mt-3 h-10 w-full text-xs font-semibold"
-            onClick={onOpenShowcase}
-          >
-            메뉴 제작
-          </Button>
+          <div className="mt-auto pt-5">
+            <Button
+              type="button"
+              variant="soft"
+              className="h-12 w-full text-xs font-semibold sm:h-11"
+              onClick={onOpenShowcase}
+            >
+              {t("lobby.card.showcase.cta")}
+            </Button>
+          </div>
         </Card>
 
-        <Card className="p-4">
-          <div className="text-xs font-semibold uppercase tracking-wide text-coffee-600/60">
-            카운터
+        <Card className="flex min-h-[192px] flex-col p-6 sm:p-5 md:p-6">
+          <div className={cardLabelClass}>{t("lobby.sheet.counter.title")}</div>
+          <p className={cardStatusClass}>
+            {menuTotalStock > 0 ? (
+              displaySellingActive ? (
+                <>
+                  {t("lobby.card.counter.sellingLive.prefix")}{" "}
+                  <span className="tabular-nums">
+                    {sellSec}
+                    {t("lobby.card.counter.selling.unit")}
+                  </span>
+                </>
+              ) : (
+                t("lobby.card.counter.waitStart")
+              )
+            ) : (
+              <>
+                {t("lobby.card.counter.emptyLine1")}
+                <br className="sm:hidden" />
+                <span className="sm:ml-1">{t("lobby.card.counter.emptyLine2")}</span>
+              </>
+            )}
+          </p>
+          <p className={cardDescClass}>{offline}</p>
+          <div className="mt-auto pt-5">
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-12 w-full text-xs font-semibold text-coffee-900 sm:h-11"
+              onClick={onOpenCounter}
+            >
+              {t("lobby.card.counter.cta")}
+            </Button>
           </div>
-          <p className="mt-2 text-sm font-semibold text-coffee-900">{counterStatus}</p>
-          <p className="mt-1 text-xs leading-relaxed text-coffee-700/80">{offline}</p>
-          <Button
-            type="button"
-            variant="ghost"
-            className="mt-3 h-10 w-full text-xs font-semibold text-coffee-900"
-            onClick={onOpenCounter}
-          >
-            카운터 보기
-          </Button>
         </Card>
 
-        <Card className="p-4">
-          <div className="text-xs font-semibold uppercase tracking-wide text-coffee-600/60">
-            안내
-          </div>
-          <p className="mt-2 text-sm font-semibold text-coffee-900">
-            {menuTotalStock > 0 ? "자동 판매 진행 중" : "진열이 비어 있어요"}
-          </p>
-          <p className="mt-1 text-xs leading-relaxed text-coffee-700/80">
+        <Card className="flex min-h-[192px] flex-col p-6 sm:p-5 md:p-6">
+          <div className={cardLabelClass}>{t("lobby.card.label.today")}</div>
+          <p className={cardStatusClass}>
             {menuTotalStock > 0
-              ? `약 ${sellSec}s마다 한 잔씩 조용히 나가요.`
-              : "쇼케이스에서 1잔만 만들어도 바로 팔리기 시작해요."}
+              ? displaySellingActive
+                ? t("lobby.card.today.selling")
+                : t("lobby.card.today.idle")
+              : t("lobby.card.today.empty")}
           </p>
+          <p className={`${cardDescClass} flex-1`}>
+            {menuTotalStock > 0 ? (
+              displaySellingActive ? (
+                <>
+                  {t("lobby.card.today.sellingDesc1", { sec: sellSec })}
+                  <br className="sm:hidden" />
+                  {t("lobby.card.today.sellingDesc2")}
+                </>
+              ) : (
+                <>
+                  {t("lobby.card.today.idleDesc1")}
+                  <br className="sm:hidden" />
+                  {t("lobby.card.today.idleDesc2")}
+                </>
+              )
+            ) : (
+              <>
+                {t("lobby.card.today.emptyDesc1")}
+                <br className="sm:hidden" />
+                {t("lobby.card.today.emptyDesc2")}
+              </>
+            )}
+          </p>
+          <div className="mt-auto pt-5" aria-hidden>
+            <div className="h-12 sm:h-11" />
+          </div>
         </Card>
       </div>
     </section>

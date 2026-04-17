@@ -1,16 +1,18 @@
 "use client";
 
+import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { DRINK_MENU_TEXT_IDS } from "@/data/drinkMenuTextIds";
 import { getCafeRuntimeModifiers } from "@/features/meta/balance/cafeModifiers";
 import {
   CAFE_ECONOMY,
-  MENU_LABEL,
   MENU_ORDER,
   MENU_UNLOCK_CAFE_LEVEL,
 } from "@/features/meta/balance/cafeEconomy";
 import type { DrinkMenuId } from "@/features/meta/types/gameState";
+import { t } from "@/locale/i18n";
 import { useAppStore } from "@/stores/useAppStore";
 import { useGameFeedback } from "@/hooks/useGameFeedback";
 import { cn } from "@/lib/utils";
@@ -27,9 +29,11 @@ export function CafeLoopSection({
   const cafe = useAppStore((s) => s.cafeState);
   const shots = useAppStore((s) => s.cafeState.espressoShots);
   const menuStock = useAppStore((s) => s.cafeState.menuStock);
+  const displaySellingActive = useAppStore((s) => s.cafeState.displaySellingActive);
   const lastAuto = useAppStore((s) => s.cafeState.lastAutoSellAtMs);
   const roastOnce = useAppStore((s) => s.roastOnce);
   const craftDrink = useAppStore((s) => s.craftDrink);
+  const startDisplaySelling = useAppStore((s) => s.startDisplaySelling);
   const { lightTap } = useGameFeedback();
 
   const m = getCafeRuntimeModifiers(cafe);
@@ -40,9 +44,11 @@ export function CafeLoopSection({
 
   const roastBlockReason =
     shots >= m.maxShots
-      ? "베이스가 가득 찼어요. 판매로 샷을 비운 뒤 다시 로스팅해요."
+      ? t("cafe.loop.roast.blockFull")
       : beans < m.roastBeanCost
-        ? `원두가 ${m.roastBeanCost - beans}단 더 필요해요.`
+        ? t("cafe.loop.roast.blockBeans", {
+            need: m.roastBeanCost - beans,
+          })
         : null;
 
   const show = (k: CafeLoopSectionKey) => sections.includes(k);
@@ -60,16 +66,20 @@ export function CafeLoopSection({
       {show("roast") && (
       <Card className="p-4">
         <div className="text-xs font-semibold uppercase tracking-wide text-coffee-600/60">
-          로스터
+          {t("cafe.loop.roast.heading")}
         </div>
         <p className="mt-2 text-sm text-coffee-800">
-          원두 {m.roastBeanCost}단 → 베이스 {m.shotYield}샷. (최대 {m.maxShots}샷)
+          {t("cafe.loop.roast.line", {
+            cost: m.roastBeanCost,
+            yield: m.shotYield,
+            max: m.maxShots,
+          })}
         </p>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <div className="text-sm font-semibold text-coffee-900">
-            베이스{" "}
+            {t("cafe.loop.roast.shotsLabel")}{" "}
             <span className="tabular-nums text-coffee-700">{shots}</span>
-            샷
+            {t("cafe.loop.roast.shotsUnit")}
           </div>
           <Button
             type="button"
@@ -80,7 +90,7 @@ export function CafeLoopSection({
               roastOnce();
             }}
           >
-            로스팅
+            {t("cafe.loop.roast.cta")}
           </Button>
         </div>
         <p
@@ -90,7 +100,7 @@ export function CafeLoopSection({
           )}
         >
           {canRoast
-            ? "베이스를 채우고 쇼케이스에서 잔을 만들어 진열해요."
+            ? t("cafe.loop.roast.hintOk")
             : roastBlockReason}
         </p>
       </Card>
@@ -101,26 +111,26 @@ export function CafeLoopSection({
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div>
             <div className="text-xs font-semibold uppercase tracking-wide text-coffee-600/60">
-              메뉴 제작
+              {t("cafe.loop.craft.heading")}
             </div>
             <p className="mt-2 text-sm text-coffee-800">
-              가능한 카드부터 눌러 진열 재고를 채워요.
+              {t("cafe.loop.craft.intro")}
             </p>
           </div>
         </div>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-cream-200/50 px-3 py-2 ring-1 ring-coffee-600/5">
           <span className="text-[11px] font-semibold text-coffee-600/75">
-            지금 자원
+            {t("cafe.loop.craft.resources")}
           </span>
           <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs font-semibold tabular-nums text-coffee-900">
             <span>
-              샷{" "}
+              {t("cafe.loop.craft.shots")}{" "}
               <span className="text-coffee-800">{shots}</span>
             </span>
             <span>
-              원두{" "}
+              {t("cafe.loop.craft.beans")}{" "}
               <span className="text-coffee-800">{beans}</span>
-              단
+              {t("cafe.loop.craft.beansUnit")}
             </span>
           </div>
         </div>
@@ -149,19 +159,22 @@ export function CafeLoopSection({
       {show("display") && (
       <Card id="lobby-cafe-display" className="scroll-mt-4 p-4">
         <div className="text-xs font-semibold uppercase tracking-wide text-coffee-600/60">
-          진열 · 자동 판매
+          {t("cafe.loop.display.heading")}
         </div>
         <p className="mt-2 text-sm text-coffee-800">
-          약 {(m.autoSellIntervalMs / 1000).toFixed(1)}초마다 손님이 한 잔
-          가져가요. 아메 → 라떼 → 아포 순으로 비어 있는 잔을 집어요.
+          {displaySellingActive
+            ? t("cafe.loop.display.tickWhenSelling", {
+                sec: (m.autoSellIntervalMs / 1000).toFixed(1),
+              })
+            : t("cafe.loop.display.tickWhenIdle")}
         </p>
         {totalStock === 0 && show("craft") ? (
           <div className="mt-3 rounded-2xl border border-accent-soft/25 bg-cream-50/90 px-3 py-3 ring-1 ring-coffee-600/8">
             <p className="text-xs font-semibold text-coffee-900">
-              진열이 비어 있어요
+              {t("cafe.loop.display.emptyTitle.craft")}
             </p>
             <p className="mt-1 text-xs leading-relaxed text-coffee-700/85">
-              위 메뉴 제작에서 1잔만 만들어도 자동 판매가 시작돼요.
+              {t("cafe.loop.display.emptyHint.craft")}
             </p>
             <Button
               type="button"
@@ -172,16 +185,39 @@ export function CafeLoopSection({
                 scrollToCraft();
               }}
             >
-              메뉴 제작으로 이동
+              {t("cafe.loop.display.emptyCta.craft")}
             </Button>
           </div>
         ) : null}
         {totalStock === 0 && !show("craft") ? (
           <div className="mt-3 rounded-2xl border border-accent-soft/20 bg-cream-50/90 px-3 py-2.5 ring-1 ring-coffee-600/8">
             <p className="text-xs leading-relaxed text-coffee-700/85">
-              진열이 비어 있어요. 쇼케이스에서 메뉴를 제작해 주세요.
+              {t("cafe.loop.display.emptyNoCraft")}
             </p>
           </div>
+        ) : null}
+        {totalStock > 0 && !displaySellingActive ? (
+          <div className="mt-3">
+            <Button
+              type="button"
+              variant="soft"
+              className="h-11 w-full text-xs font-semibold sm:h-10"
+              onClick={() => {
+                lightTap();
+                startDisplaySelling();
+              }}
+            >
+              {t("cafe.loop.display.startCta")}
+            </Button>
+            <p className="mt-2 text-center text-[11px] leading-relaxed text-coffee-600/68">
+              {t("cafe.loop.display.startHint")}
+            </p>
+          </div>
+        ) : null}
+        {displaySellingActive && totalStock > 0 ? (
+          <p className="mt-3 text-center text-[11px] font-medium text-coffee-700/85">
+            {t("cafe.loop.display.sellingBadge")}
+          </p>
         ) : null}
         <div className="mt-4 grid grid-cols-3 gap-2 text-center">
           {MENU_ORDER.map((id) => (
@@ -195,46 +231,35 @@ export function CafeLoopSection({
               )}
             >
               <div className="text-[11px] font-semibold text-coffee-600/70">
-                {MENU_LABEL[id]}
+                {t(DRINK_MENU_TEXT_IDS[id].nameTextId)}
               </div>
               <div className="mt-1 text-lg font-bold tabular-nums text-coffee-900">
                 {menuStock[id]}
               </div>
               <div className="mt-1 text-[10px] text-coffee-600/60">
-                +{CAFE_ECONOMY.sellPrice[id] + m.sellBonus}코인
+                {t("cafe.loop.display.coinLine", {
+                  price: CAFE_ECONOMY.sellPrice[id] + m.sellBonus,
+                })}
               </div>
             </div>
           ))}
         </div>
         <motion.p
           className="mt-3 text-center text-xs text-coffee-600/70"
-          key={lastAuto + totalStock}
+          key={`${lastAuto}-${totalStock}-${displaySellingActive ? 1 : 0}`}
           initial={reduceMotion ? false : { opacity: 0.4 }}
           animate={{ opacity: 1 }}
         >
-          진열 합계{" "}
+          {t("cafe.loop.display.total")}{" "}
           <span className="font-semibold tabular-nums text-coffee-800">
             {totalStock}
           </span>
-          잔
+          {t("cafe.loop.display.totalUnit")}
         </motion.p>
       </Card>
       )}
     </div>
   );
-}
-
-function menuMiniDesc(id: DrinkMenuId): string {
-  switch (id) {
-    case "americano":
-      return "가볍고 깔끔한 한 잔. 기본으로 가장 잘 나가요.";
-    case "latte":
-      return "부드러운 바디감. 원두를 조금 더 써요.";
-    case "affogato":
-      return "진하고 달콤한 마무리. 특별한 한 잔이에요.";
-    default:
-      return "";
-  }
 }
 
 function menuEmoji(id: DrinkMenuId): string {
@@ -276,12 +301,12 @@ function MenuCraftCard({
   const needsBeans = rec.beans > 0;
 
   const blockLine = locked
-    ? `카페 Lv.${requiredCafeLevel}에서 열려요`
+    ? t("cafe.menuCraft.unlock", { level: requiredCafeLevel })
     : !shotsOk
-      ? `샷이 부족해요 · ${shots}/${rec.shots}`
+      ? t("cafe.menuCraft.needShots", { have: shots, need: rec.shots })
       : !beansOk && needsBeans
-        ? `원두가 부족해요 · ${beans}/${rec.beans}단`
-        : "지금은 만들 수 없어요";
+        ? t("cafe.menuCraft.needBeans", { have: beans, need: rec.beans })
+        : t("cafe.menuCraft.blockGeneric");
 
   return (
     <li
@@ -295,37 +320,61 @@ function MenuCraftCard({
           : "bg-cream-200/45 ring-coffee-600/5",
       )}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-center gap-3">
         <div
           className={cn(
-            "grid h-12 w-12 place-items-center rounded-2xl ring-1",
-            can
-              ? "bg-gradient-to-br from-cream-50 to-cream-200/70 ring-accent-soft/22"
-              : "bg-cream-50/70 ring-coffee-600/10 opacity-80",
+            "relative grid place-items-center overflow-visible rounded-2xl",
+            id === "americano" || id === "latte" || id === "affogato"
+              ? "h-24 w-24"
+              : "h-12 w-12 ring-1",
+            id === "americano" || id === "latte" || id === "affogato"
+              ? "bg-transparent"
+              : can
+                ? "bg-gradient-to-br from-cream-50 to-cream-200/70 ring-accent-soft/22"
+                : "bg-cream-50/70 ring-coffee-600/10 opacity-80",
           )}
           aria-hidden
         >
-          <span className="text-xl">{menuEmoji(id)}</span>
+          {id === "americano" || id === "latte" || id === "affogato" ? (
+            <Image
+              src={
+                id === "americano"
+                  ? "/images/drink/아메리카노.png"
+                  : id === "latte"
+                    ? "/images/drink/카페라떼.png"
+                    : "/images/drink/아포가토.png"
+              }
+              alt=""
+              width={256}
+              height={256}
+              className="pointer-events-none h-32 w-32 -translate-y-1 object-contain drop-shadow-[0_14px_26px_rgba(90,61,43,0.22)]"
+              priority
+            />
+          ) : (
+            <span className="text-xl">{menuEmoji(id)}</span>
+          )}
         </div>
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-sm font-semibold text-coffee-900">
-              {MENU_LABEL[id]}
+              {t(DRINK_MENU_TEXT_IDS[id].nameTextId)}
             </h3>
             {can ? (
               <span className="rounded-full bg-accent-soft/14 px-2 py-0.5 text-[10px] font-semibold text-coffee-800 ring-1 ring-accent-soft/22">
-                제작 가능
+                {t("cafe.menuCraft.badge.can")}
               </span>
             ) : (
               <span className="rounded-full bg-coffee-900/5 px-2 py-0.5 text-[10px] font-semibold text-coffee-600/70 ring-1 ring-coffee-600/10">
-                {locked ? "잠김" : "제작 불가"}
+                {locked
+                  ? t("cafe.menuCraft.badge.locked")
+                  : t("cafe.menuCraft.badge.blocked")}
               </span>
             )}
           </div>
 
           <p className="mt-1 text-xs leading-relaxed text-coffee-700/80">
-            {menuMiniDesc(id)}
+            {t(DRINK_MENU_TEXT_IDS[id].descriptionTextId)}
           </p>
 
           <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] font-semibold tabular-nums">
@@ -337,7 +386,7 @@ function MenuCraftCard({
                   : "bg-[#f6ede3] text-coffee-900 ring-accent-soft/22",
               )}
             >
-              샷 {shots}/{rec.shots}
+              {t("cafe.loop.craft.shots")} {shots}/{rec.shots}
             </span>
             {needsBeans ? (
               <span
@@ -348,7 +397,10 @@ function MenuCraftCard({
                     : "bg-[#f6ede3] text-coffee-900 ring-accent-soft/22",
                 )}
               >
-                원두 {beans}/{rec.beans}단
+                {t("cafe.menuCraft.beansPair", {
+                  have: beans,
+                  need: rec.beans,
+                })}
               </span>
             ) : null}
           </div>
@@ -363,7 +415,7 @@ function MenuCraftCard({
         <div className="flex shrink-0 flex-col items-end gap-2">
           <div className="text-right">
             <div className="text-[10px] font-semibold text-coffee-600/70">
-              재고
+              {t("cafe.menuCraft.stockLabel")}
             </div>
             <div className="mt-0.5 text-sm font-bold tabular-nums text-coffee-900">
               {stock}
@@ -380,7 +432,7 @@ function MenuCraftCard({
             disabled={!can}
             onClick={onCraft}
           >
-            제작하기
+            {t("cafe.menuCraft.cta")}
           </Button>
         </div>
       </div>

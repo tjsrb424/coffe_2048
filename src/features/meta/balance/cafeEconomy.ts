@@ -28,12 +28,6 @@ export const CAFE_ECONOMY = {
   },
 } as const;
 
-export const MENU_LABEL: Record<DrinkMenuId, string> = {
-  americano: "아메리카노",
-  latte: "카페 라떼",
-  affogato: "아포가토",
-};
-
 export function defaultMenuStock(): MenuStock {
   return { americano: 0, latte: 0, affogato: 0 };
 }

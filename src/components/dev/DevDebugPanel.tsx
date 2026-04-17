@@ -89,7 +89,13 @@ export function DevDebugPanel({ className }: { className?: string }) {
   const clearStatus = useCallback(() => setStatus(null), []);
 
   return (
-    <div className={cn("fixed bottom-3 left-3 z-[80]", className)}>
+    <div
+      className={cn(
+        // 루트는 클릭 통과: 고정 레이어가 투명 영역까지 포인터를 잡아 로비 버튼이 먹통이 되는 경우 방지
+        "pointer-events-none fixed bottom-3 left-3 z-40",
+        className,
+      )}
+    >
       <div className="pointer-events-auto flex items-center gap-2">
         <button
           type="button"

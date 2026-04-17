@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { AnimatedNumber } from "@/components/common/AnimatedNumber";
+import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/useAppStore";
 import { useLobbyFxStore } from "@/stores/useLobbyFxStore";
 
@@ -15,8 +16,10 @@ function formatMMSS(totalSec: number): string {
 
 export function ResourceBar({
   variant = "default",
+  className,
 }: {
   variant?: "default" | "compact";
+  className?: string;
 }) {
   const coins = useAppStore((s) => s.playerResources.coins);
   const beans = useAppStore((s) => s.playerResources.beans);
@@ -52,7 +55,10 @@ export function ResourceBar({
     return (
       <motion.div
         layout={!reduceMotion}
-        className="mb-3 flex items-stretch gap-1.5 rounded-2xl bg-cream-50/85 px-2 py-2 shadow-card ring-1 ring-coffee-600/8"
+        className={cn(
+          "mb-3 flex items-stretch gap-1.5 rounded-2xl bg-cream-50/85 px-2 py-2.5 shadow-card ring-1 ring-coffee-600/8",
+          className,
+        )}
       >
         <CompactStat
           label="코인"
@@ -91,7 +97,10 @@ export function ResourceBar({
   return (
     <motion.div
       layout={!reduceMotion}
-      className="mb-5 grid grid-cols-3 gap-2 rounded-3xl bg-cream-50/90 p-3 shadow-card ring-1 ring-coffee-600/10"
+      className={cn(
+        "mb-5 grid grid-cols-3 gap-2 rounded-3xl bg-cream-50/90 p-3 shadow-card ring-1 ring-coffee-600/10",
+        className,
+      )}
     >
       <div className="relative rounded-2xl bg-cream-200/70 px-3 py-3 text-center ring-1 ring-coffee-600/5">
         <div className="text-[11px] font-semibold text-coffee-600/70">코인</div>

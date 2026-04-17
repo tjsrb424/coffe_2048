@@ -1,5 +1,6 @@
 import type { LobbySheetId } from "@/features/lobby/config/lobbyHotspots";
 import type { AppPersistState } from "@/features/meta/types/gameState";
+import { t } from "@/locale/i18n";
 
 type SheetSnapshot = Pick<
   AppPersistState,
@@ -19,29 +20,42 @@ export function buildLobbySheetSummary(
 
   switch (sheet) {
     case "roast":
-      return `베이스 ${cafeState.espressoShots}샷 · 원두 ${playerResources.beans}단`;
+      return t("lobby.summary.roast", {
+        shots: cafeState.espressoShots,
+        beans: playerResources.beans,
+      });
     case "showcase":
-      return stock === 0
-        ? "진열 합계 0잔 · 메뉴 제작으로 채워요"
-        : `진열 합계 ${stock}잔`;
+      if (stock === 0) return t("lobby.summary.showcase.empty");
+      if (!cafeState.displaySellingActive)
+        return t("lobby.summary.showcase.idle", { stock });
+      return t("lobby.summary.showcase.selling", { stock });
     case "counter": {
       const offline =
         cafeState.lastOfflineSaleAtMs > 0 && cafeState.lastOfflineSaleCoins > 0
-          ? `직전 오프라인 +${cafeState.lastOfflineSaleCoins}코인`
+          ? t("lobby.summary.counter.offline", {
+              coins: cafeState.lastOfflineSaleCoins,
+            })
           : null;
       const puzzle =
         puzzleProgress.totalRuns > 0
-          ? `최근 퍼즐 ${puzzleProgress.lastRunScore}점`
-          : "아직 퍼즐 기록 없음";
+          ? t("lobby.summary.counter.puzzleRecent", {
+              score: puzzleProgress.lastRunScore,
+            })
+          : t("lobby.summary.counter.puzzleNone");
       const stockLine =
         stock === 0
-          ? "진열 0잔 · 쇼케이스에서 제작"
-          : `진열 합계 ${stock}잔`;
+          ? t("lobby.summary.counter.stockEmpty")
+          : cafeState.displaySellingActive
+            ? t("lobby.summary.counter.stockSelling", { stock })
+            : t("lobby.summary.counter.stockIdle", { stock });
       const tail = offline ? `${offline} · ${puzzle}` : puzzle;
       return `${stockLine} · ${tail}`;
     }
     case "puzzle":
-      return `하트 ${playerResources.hearts} · 베스트 타일 ${puzzleProgress.bestTile}`;
+      return t("lobby.summary.puzzle", {
+        hearts: playerResources.hearts,
+        bestTile: puzzleProgress.bestTile,
+      });
     default:
       return "";
   }

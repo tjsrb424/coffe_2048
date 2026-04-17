@@ -19,7 +19,7 @@ const TRACK_META: Record<CafeUpgradeTrack, { title: string; blurb: string }> = {
   },
   display: {
     title: "진열 · 쇼케이스",
-    blurb: "자동 판매당 처리 틱이 늘고, 잔당 보너스 코인이 붙어요.",
+    blurb: "판매 세션당 한 번에 처리할 틱이 늘고, 잔당 보너스 코인이 붙어요.",
   },
   ambiance: {
     title: "분위기 · 라운지",
@@ -45,8 +45,8 @@ export function CafeUpgradesCard() {
 
       <div className="rounded-2xl bg-cream-200/50 px-3 py-2 text-xs text-coffee-700 ring-1 ring-coffee-600/5">
         현재 보정 — 로스팅 원두 {m.roastBeanCost}단 / 샷 +{m.shotYield} / 최대{" "}
-        {m.maxShots}샷 · 판매 주기 약 {(m.autoSellIntervalMs / 1000).toFixed(1)}
-        초 · 판매 보너스 +{m.sellBonus}코인
+        {m.maxShots}샷 · 판매 간격 약 {(m.autoSellIntervalMs / 1000).toFixed(1)}
+        초(개시 후) · 판매 보너스 +{m.sellBonus}코인
       </div>
 
       <ul className="space-y-3">

@@ -7,11 +7,15 @@ const deployedBasePath =
   process.env.NEXT_PUBLIC_BASE_PATH?.trim() ||
   (process.env.GITHUB_ACTIONS === "true" ? githubPagesBasePath : "");
 
+/** `output: "export"`를 항상 켜면 `next dev`에서 "missing required error components" 등이 날 수 있음 */
+const enableStaticExport =
+  process.env.NEXT_STATIC_EXPORT === "true" ||
+  process.env.GITHUB_ACTIONS === "true";
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   allowedDevOrigins: ["192.168.50.8"],
-  // GitHub Pages 배포를 위한 정적 export
-  output: "export",
+  ...(enableStaticExport ? { output: "export" as const } : {}),
   basePath: deployedBasePath,
   assetPrefix: deployedBasePath,
   env: {

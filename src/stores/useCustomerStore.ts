@@ -3,24 +3,93 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { SAMPLE_CUSTOMERS } from "@/data/customers";
+import { t } from "@/locale/i18n";
 import type { DrinkMenuId } from "@/features/meta/types/gameState";
 import type {
   CustomerId,
   CustomerProfile,
   CustomerRuntimeState,
 } from "@/features/customers/types";
-import { nextRuntimeStateOnAffectionGain } from "@/features/customers/lib/affection";
+import {
+  clampStoryIndex,
+  nextRuntimeStateOnAffectionGain,
+} from "@/features/customers/lib/affection";
+import { affectionGainFromCafeSales } from "@/features/customers/lib/saleAffection";
 
 type CustomerIndex = Record<CustomerId, CustomerProfile>;
+
+const CORE_CUSTOMER_IDS = new Set<CustomerId>([
+  "han_eun",
+  "hyo_im",
+  "seo_jun",
+  "so_yeon",
+  "dong_hyun",
+]);
+
+type SaleSessionState = {
+  /** 세션 시작 시각(ms) — 큐 생성 시드 */
+  startedAtMs: number;
+  /** 세션 내 방문 손님 큐 */
+  queue: CustomerId[];
+  /** 현재 손님이 남은 구매 잔 수(1~2) */
+  currentRemainingCups: number;
+  /** 이 세션에서 오늘의 손님이 이미 큐에 포함되었는지(최대 1회) */
+  featuredQueued: boolean;
+};
 
 type CustomerSaveState = {
   /** 고객별 런타임 상태(애정도/단골/스토리 단계). */
   byId: Record<CustomerId, CustomerRuntimeState>;
   /** MVP: 오늘의 대표 손님(판매 루프 최소 연결). */
   featuredCustomerId: CustomerId;
+  /** 오늘의 손님이 오늘 몇 번 더 들를 수 있는지(1~2) */
+  featuredDailyQuotaTotal: number;
+  /** 오늘의 손님 방문 소진 횟수 */
+  featuredDailyQuotaUsed: number;
+  /** quota를 리셋한 일 키(UTC day) */
+  featuredQuotaDayKey: number;
+  /**
+   * 일 단위 로테이션 앵커(UTC 근사 일 단위).
+   * `ensureFeaturedForToday`에서 같은 날짜면 손님을 바꾸지 않음.
+   */
+  lastFeaturedDayKey: number;
 };
 
-export type CustomerStore = CustomerSaveState & {
+/** 카운터 시트용 짧은 판매 피드백(비저장, 수 초만 유지) */
+export type CustomerCounterSalePing = {
+  atMs: number;
+  gainedAffection: number;
+  shopAfter: number;
+  /** 막 다녀간 손님 이름(2~3명까지, 표시용) */
+  buyerNames: string[];
+};
+
+/** 스토리 조각 해금 1회성 피드백(비저장) */
+export type CustomerStoryUnlockPing = {
+  atMs: number;
+  /** 해금된 단계 제목(이미 번역된 문자열) */
+  title: string;
+};
+
+/** 단골 손님이 남긴 작은 흔적(비저장) */
+export type RegularGiftPing = {
+  atMs: number;
+  giverName: string;
+  /** 짧은 메모 문구(이미 번역된 문자열) */
+  note: string;
+};
+
+type CustomerStore = CustomerSaveState & {
+  /** 마지막 자동판매로 인한 애정 피드백(카운터 시트 1줄용) */
+  lastCounterSalePing: CustomerCounterSalePing | null;
+  /** 애정 임계치로 스토리 단계가 올라간 직후 짧은 피드백(카운터 시트) */
+  lastStoryUnlockPing: CustomerStoryUnlockPing | null;
+  /** 판매 세션(비저장) — 여러 손님이 오가는 최소 배치 */
+  saleSession: SaleSessionState | null;
+  /** 단골 손님이 남긴 작은 흔적(카운터 시트 1줄용) */
+  lastRegularGiftPing: RegularGiftPing | null;
+  /** 흔적 스팸 방지용 전역 쿨다운(ms) */
+  lastRegularGiftAtMs: number;
   /** 가게 애정도(정의: 개별 손님 애정도의 합산) */
   shopAffection: () => number;
   /** 고객 프로필 조회(샘플/추후 확장) */
@@ -30,12 +99,28 @@ export type CustomerStore = CustomerSaveState & {
   /** 판매 1회(또는 soldCount 묶음) 발생 시 애정도 상승 훅 */
   recordCafeSale: (input: {
     soldCount: number;
-    /** 판매된 메뉴 ID(가능하면 전달, 현재 루프에서는 optional) */
-    menuId?: DrinkMenuId;
+    /** 메뉴별 판매 잔 수(자동 판매에서 집계). 있으면 선호 메뉴 보너스 계산에 사용 */
+    soldByMenu?: Partial<Record<DrinkMenuId, number>>;
     nowMs?: number;
-  }) => void;
+  }) => {
+    gainedAffection: number;
+    customerDisplayName: string;
+    shopAffectionAfter: number;
+    /** 선호 메뉴로 인한 추가 애정(= 맞춤 잔 수) */
+    preferredBonus: number;
+    /** 이번 판매로 새로 열린 스토리 조각 제목(없으면 null) */
+    storyUnlockTitle: string | null;
+  } | null;
+  /** 판매 세션을 확보(판매 개시 시 호출) */
+  ensureSaleSession: (nowMs?: number) => void;
+  /** 판매 종료 시 세션을 정리 */
+  clearSaleSession: () => void;
+  /** 오늘의 손님 방문 quota를 오늘 날짜 기준으로 보정 */
+  ensureFeaturedQuotaForToday: (nowMs?: number) => void;
   /** 대표 손님 변경(추후 로테이션/조건 연결 대비) */
   setFeaturedCustomer: (id: CustomerId) => void;
+  /** 캘린더 일 기준으로 오늘의 손님 1명을 고름(최소 로테이션). */
+  ensureFeaturedForToday: (nowMs?: number) => void;
 };
 
 const PROFILE_INDEX: CustomerIndex = Object.fromEntries(
@@ -58,6 +143,103 @@ function ensureStateFor(
   return byId[id] ?? defaultRuntimeState(PROFILE_INDEX[id] ?? SAMPLE_CUSTOMERS[0]);
 }
 
+function calendarDayKeyUtc(nowMs: number): number {
+  return Math.floor(nowMs / 86_400_000);
+}
+
+function featuredCustomerIdForDay(dayKey: number): CustomerId {
+  const ids = SAMPLE_CUSTOMERS.map((c) => c.id);
+  return ids[((dayKey % ids.length) + ids.length) % ids.length] ?? ids[0];
+}
+
+function xorshift32(seed: number): () => number {
+  let x = seed | 0;
+  return () => {
+    x ^= x << 13;
+    x ^= x >>> 17;
+    x ^= x << 5;
+    return x >>> 0;
+  };
+}
+
+function expandSoldMenus(
+  soldCount: number,
+  soldByMenu?: Partial<Record<DrinkMenuId, number>>,
+): DrinkMenuId[] {
+  if (!soldByMenu) return new Array(soldCount).fill("americano");
+  const order: DrinkMenuId[] = ["americano", "latte", "affogato"];
+  const out: DrinkMenuId[] = [];
+  for (const mid of order) {
+    const n = soldByMenu[mid] ?? 0;
+    for (let i = 0; i < n; i += 1) out.push(mid);
+  }
+  // 집계가 살짝 어긋난 경우는 안전하게 패딩
+  while (out.length < soldCount) out.push(out[out.length - 1] ?? "americano");
+  return out.slice(0, soldCount);
+}
+
+function pickWeighted(rng: () => number, ids: CustomerId[], weights: number[]): CustomerId {
+  const total = weights.reduce((s, w) => s + Math.max(0, w), 0);
+  if (total <= 0) return ids[0] ?? SAMPLE_CUSTOMERS[0].id;
+  let r = (rng() % 10_000) / 10_000;
+  let acc = 0;
+  for (let i = 0; i < ids.length; i += 1) {
+    acc += Math.max(0, weights[i] ?? 0) / total;
+    if (r <= acc) return ids[i]!;
+  }
+  return ids[ids.length - 1] ?? SAMPLE_CUSTOMERS[0].id;
+}
+
+function cupsForGuest(
+  profile: CustomerProfile,
+  isRegular: boolean,
+  rng: () => number,
+): number {
+  const u = (rng() % 10_000) / 10_000;
+  let p2 = 0.1;
+  if (profile.tags.includes("regular")) p2 = 0.3;
+  else if (profile.tags.includes("sweet_tooth")) p2 = 0.2;
+  else if (profile.tags.includes("late_night")) p2 = 0.15;
+  if (isRegular) p2 = Math.min(0.45, p2 + 0.08);
+  return u < p2 ? 2 : 1;
+}
+
+function generateVisitQueue(input: {
+  rng: () => number;
+  allIds: CustomerId[];
+  featuredId: CustomerId;
+  allowFeatured: boolean;
+  length: number;
+  byId: Record<CustomerId, CustomerRuntimeState>;
+}): { queue: CustomerId[]; featuredQueued: boolean } {
+  const others = input.allIds.filter((id) => id !== input.featuredId);
+  const queue: CustomerId[] = [];
+  // 기본은 균등. featured는 세션당 최대 1회만 들어오며, 들어온다면 약간 더 잘 보이게(확률만 상향).
+  const includeFeatured =
+    input.allowFeatured && PROFILE_INDEX[input.featuredId] != null
+      ? (input.rng() % 10_000) / 10_000 < 0.6
+      : false;
+
+  while (queue.length < input.length) {
+    const pickPool = others.length > 0 ? others : input.allIds;
+    const weights = pickPool.map((id) => (input.byId[id]?.isRegular ? 1.35 : 1));
+    queue.push(pickWeighted(input.rng, pickPool, weights));
+  }
+
+  if (includeFeatured && queue.length > 0) {
+    const pos = (input.rng() % queue.length) | 0;
+    queue[pos] = input.featuredId;
+  }
+
+  return { queue, featuredQueued: includeFeatured };
+}
+
+function featuredDailyQuotaForDay(dayKey: number): number {
+  // dayKey 기반으로 1 또는 2회 방문 (대략 55%는 1회, 45%는 2회)
+  const rng = xorshift32((dayKey * 1103515245 + 12345) >>> 0);
+  return (rng() % 10_000) / 10_000 < 0.55 ? 1 : 2;
+}
+
 export const useCustomerStore = create<CustomerStore>()(
   persist(
     (set, get) => ({
@@ -65,6 +247,15 @@ export const useCustomerStore = create<CustomerStore>()(
         SAMPLE_CUSTOMERS.map((c) => [c.id, defaultRuntimeState(c)]),
       ),
       featuredCustomerId: SAMPLE_CUSTOMERS[0].id,
+      featuredDailyQuotaTotal: 1,
+      featuredDailyQuotaUsed: 0,
+      featuredQuotaDayKey: 0,
+      lastFeaturedDayKey: 0,
+      lastCounterSalePing: null,
+      lastStoryUnlockPing: null,
+      saleSession: null,
+      lastRegularGiftPing: null,
+      lastRegularGiftAtMs: 0,
 
       shopAffection: () => {
         const byId = get().byId;
@@ -80,45 +271,365 @@ export const useCustomerStore = create<CustomerStore>()(
         return s ?? defaultRuntimeState(p);
       },
 
-      recordCafeSale: ({ soldCount, menuId, nowMs }) => {
-        if (soldCount <= 0) return;
-        const id = get().featuredCustomerId;
-        const profile = PROFILE_INDEX[id];
-        if (!profile) return;
-        const prev = ensureStateFor(get().byId, id);
-
-        // MVP: 판매 1잔당 +1, 선호 메뉴면 추가 +1 (menuId가 전달된 경우만)
-        const prefBonus = menuId && profile.preferredMenus.includes(menuId) ? 1 : 0;
-        const gainedAffection = soldCount + prefBonus;
+      ensureFeaturedQuotaForToday: (nowMs) => {
         const now = nowMs ?? Date.now();
+        const dayKey = calendarDayKeyUtc(now);
+        const s = get();
+        if (s.featuredQuotaDayKey === dayKey && s.featuredDailyQuotaTotal > 0) return;
+        const total = featuredDailyQuotaForDay(dayKey);
+        set({
+          featuredQuotaDayKey: dayKey,
+          featuredDailyQuotaTotal: total,
+          featuredDailyQuotaUsed: 0,
+        });
+      },
 
-        const next = nextRuntimeStateOnAffectionGain({
-          profile,
-          prev,
-          gainedAffection,
-          nowMs: now,
+      ensureSaleSession: (nowMs) => {
+        const now = nowMs ?? Date.now();
+        const s = get();
+        if (s.saleSession) return;
+        get().ensureFeaturedQuotaForToday(now);
+        const ids = SAMPLE_CUSTOMERS.map((c) => c.id);
+        const featured = s.featuredCustomerId;
+        const canFeatureMore =
+          s.featuredDailyQuotaUsed < s.featuredDailyQuotaTotal;
+        const seed = (now ^ (calendarDayKeyUtc(now) * 2654435761)) >>> 0;
+        const rng = xorshift32(seed);
+        const { queue, featuredQueued } = generateVisitQueue({
+          rng,
+          allIds: ids,
+          featuredId: featured,
+          allowFeatured: canFeatureMore,
+          length: 8,
+          byId: s.byId,
+        });
+        const firstId = queue[0] ?? ids[0]!;
+        const firstProfile = PROFILE_INDEX[firstId] ?? SAMPLE_CUSTOMERS[0];
+        const firstIsRegular = s.byId[firstId]?.isRegular ?? false;
+        set({
+          saleSession: {
+            startedAtMs: now,
+            queue,
+            currentRemainingCups: cupsForGuest(firstProfile, firstIsRegular, rng),
+            featuredQueued,
+          },
+        });
+      },
+
+      clearSaleSession: () => {
+        set({ saleSession: null });
+      },
+
+      recordCafeSale: ({ soldCount, soldByMenu, nowMs }) => {
+        if (soldCount <= 0) return null;
+        const now = nowMs ?? Date.now();
+        get().ensureFeaturedQuotaForToday(now);
+        get().ensureSaleSession(now);
+
+        const menus = expandSoldMenus(soldCount, soldByMenu);
+        const ids = SAMPLE_CUSTOMERS.map((c) => c.id);
+        const featured = get().featuredCustomerId;
+        const seed = ((get().saleSession?.startedAtMs ?? now) ^ (menus.length * 97531)) >>> 0;
+        const rng = xorshift32(seed);
+
+        // 손님별로 이번 배치에서 구매한 잔 수/메뉴를 집계
+        const perBuyer: Record<
+          CustomerId,
+          { soldCount: number; soldByMenu: Partial<Record<DrinkMenuId, number>> }
+        > = {};
+
+        let session = get().saleSession;
+        if (!session) return null;
+
+        const ensureQueueHasNext = () => {
+          if (session!.queue.length > 0) return;
+          const next = generateVisitQueue({
+            rng,
+            allIds: ids,
+            featuredId: featured,
+            allowFeatured: !session!.featuredQueued,
+            length: 8,
+            byId: get().byId,
+          });
+          session = { ...session!, queue: next.queue, featuredQueued: session!.featuredQueued || next.featuredQueued };
+        };
+
+        const ensureCurrentCups = (currentId: CustomerId) => {
+          if (session!.currentRemainingCups > 0) return;
+          const p = PROFILE_INDEX[currentId] ?? SAMPLE_CUSTOMERS[0];
+          const isRegular = get().byId[currentId]?.isRegular ?? false;
+          session = { ...session!, currentRemainingCups: cupsForGuest(p, isRegular, rng) };
+        };
+
+        for (const mid of menus) {
+          ensureQueueHasNext();
+          const currentId = session!.queue[0]!;
+          ensureCurrentCups(currentId);
+
+          perBuyer[currentId] ??= { soldCount: 0, soldByMenu: {} };
+          perBuyer[currentId]!.soldCount += 1;
+          perBuyer[currentId]!.soldByMenu[mid] = (perBuyer[currentId]!.soldByMenu[mid] ?? 0) + 1;
+
+          const nextRemaining: number = session!.currentRemainingCups - 1;
+          if (nextRemaining <= 0) {
+            session = { ...session!, queue: session!.queue.slice(1), currentRemainingCups: 0 };
+          } else {
+            session = { ...session!, currentRemainingCups: nextRemaining };
+          }
+        }
+
+        const buyerIds = Object.keys(perBuyer) as CustomerId[];
+        if (buyerIds.length === 0) return null;
+        const primaryId = buyerIds[0]!;
+        const primaryProfile = PROFILE_INDEX[primaryId] ?? SAMPLE_CUSTOMERS[0];
+        const buyerNames = buyerIds
+          .map((cid) => {
+            const p = PROFILE_INDEX[cid];
+            return p ? t(p.nameTextId) : null;
+          })
+          .filter((x): x is string => Boolean(x));
+        const buyerNamesShort = Array.from(new Set(buyerNames)).slice(0, 3);
+
+        // 핵심 손님 흔적: "핵심 손님이 실제 구매" + (단골 or 일정 애정 이상) + 낮은 확률 + 전역 쿨다운
+        const nowGiftOk = now - (get().lastRegularGiftAtMs ?? 0) >= 45_000;
+        const eligibleCoreBuyers = buyerIds.filter((cid) => {
+          if (!CORE_CUSTOMER_IDS.has(cid)) return false;
+          const st = get().byId[cid];
+          if (!st) return false;
+          return st.isRegular || st.affection >= 6;
+        });
+        const shouldGift =
+          nowGiftOk &&
+          eligibleCoreBuyers.length > 0 &&
+          (rng() % 10_000) / 10_000 < 0.05;
+        const giftGiverId = shouldGift
+          ? eligibleCoreBuyers[(rng() % eligibleCoreBuyers.length) | 0]
+          : null;
+        const giftGiverProfile = giftGiverId ? PROFILE_INDEX[giftGiverId] : null;
+        const giftGiverName = giftGiverProfile ? t(giftGiverProfile.nameTextId) : null;
+        const giftNote = shouldGift
+          ? (() => {
+              const notes = [
+                t("gift.core.note1"),
+                t("gift.core.note2"),
+              ];
+              return notes[(rng() % notes.length) | 0] ?? notes[0]!;
+            })()
+          : null;
+
+        const featuredBatch = perBuyer[featured];
+        if (!featuredBatch) {
+          // featured가 이번 배치에 없으면 애정/스토리/선호 보너스는 발생하지 않는다.
+          set((s) => {
+            const shopAfter = Object.values(s.byId).reduce(
+              (sum, st) => sum + (st.affection ?? 0),
+              0,
+            );
+            return {
+              saleSession: session,
+              lastCounterSalePing: {
+                atMs: now,
+                gainedAffection: 0,
+                shopAfter,
+                buyerNames: buyerNamesShort,
+              },
+              lastRegularGiftPing:
+                shouldGift && giftGiverName && giftNote
+                  ? { atMs: now, giverName: giftGiverName, note: giftNote }
+                  : s.lastRegularGiftPing,
+              lastRegularGiftAtMs: shouldGift ? now : s.lastRegularGiftAtMs,
+            };
+          });
+          return null;
+        }
+
+        // featured가 실제 구매했으므로, 오늘 quota를 1회 소진 (하루 총 1~2회 제한)
+        // 같은 배치에서 여러 잔이어도 1회로 취급.
+        set((s) => ({
+          featuredDailyQuotaUsed: Math.min(
+            s.featuredDailyQuotaTotal,
+            (s.featuredDailyQuotaUsed ?? 0) + 1,
+          ),
+        }));
+
+        // featured가 실제로 구매한 경우에만 애정/스토리/선호 보너스를 반영한다.
+        let totalAff = 0;
+        let totalPref = 0;
+        let storyUnlockTitle: string | null = null;
+        set((s) => {
+          let nextById = { ...s.byId };
+          const featuredProfile = PROFILE_INDEX[featured];
+          if (featuredProfile) {
+            const prev = ensureStateFor(nextById, featured);
+            const { gainedAffection, preferredBonus } = affectionGainFromCafeSales(
+              featuredProfile,
+              featuredBatch.soldCount,
+              featuredBatch.soldByMenu,
+            );
+            totalAff = gainedAffection;
+            totalPref = preferredBonus;
+            const next = nextRuntimeStateOnAffectionGain({
+              profile: featuredProfile,
+              prev,
+              gainedAffection,
+              nowMs: now,
+            });
+            if (next.storyIndex > prev.storyIndex) {
+              storyUnlockTitle = t(featuredProfile.storySteps[next.storyIndex].titleTextId);
+            }
+            nextById[featured] = next;
+          }
+          const shopAfter = Object.values(nextById).reduce(
+            (sum, st) => sum + (st.affection ?? 0),
+            0,
+          );
+          return {
+            byId: nextById,
+            saleSession: session,
+            lastCounterSalePing: {
+              atMs: now,
+              gainedAffection: totalAff,
+              shopAfter,
+              buyerNames: buyerNamesShort,
+            },
+            lastStoryUnlockPing: storyUnlockTitle
+              ? { atMs: now, title: storyUnlockTitle }
+              : s.lastStoryUnlockPing,
+            lastRegularGiftPing:
+              shouldGift && giftGiverName && giftNote
+                ? { atMs: now, giverName: giftGiverName, note: giftNote }
+                : s.lastRegularGiftPing,
+            lastRegularGiftAtMs: shouldGift ? now : s.lastRegularGiftAtMs,
+          };
         });
 
-        set((s) => ({
-          byId: {
-            ...s.byId,
-            [id]: next,
-          },
-        }));
+        return {
+          gainedAffection: totalAff,
+          customerDisplayName: t((PROFILE_INDEX[featured] ?? primaryProfile).nameTextId),
+          shopAffectionAfter: get().shopAffection(),
+          preferredBonus: totalPref,
+          storyUnlockTitle,
+        };
       },
 
       setFeaturedCustomer: (id) => {
         if (!PROFILE_INDEX[id]) return;
         set({ featuredCustomerId: id });
       },
+
+      ensureFeaturedForToday: (nowMs) => {
+        const now = nowMs ?? Date.now();
+        const dayKey = calendarDayKeyUtc(now);
+        const s = get();
+        const fallbackId = featuredCustomerIdForDay(dayKey);
+        if (!PROFILE_INDEX[s.featuredCustomerId]) {
+          set({ featuredCustomerId: fallbackId, lastFeaturedDayKey: dayKey });
+          return;
+        }
+        if (s.lastFeaturedDayKey === dayKey) return;
+        set({ featuredCustomerId: fallbackId, lastFeaturedDayKey: dayKey });
+      },
     }),
     {
       name: "coffee2048_customers_v1",
       storage: createJSONStorage(() => localStorage),
-      version: 1,
+      version: 6,
+      migrate: (persistedState, version) => {
+        let state = persistedState as CustomerSaveState & Record<string, unknown>;
+        if (version < 2) {
+          state = {
+            ...state,
+            lastFeaturedDayKey: 0,
+          } as CustomerSaveState & Record<string, unknown>;
+        }
+        if (version < 3) {
+          const known = new Set(SAMPLE_CUSTOMERS.map((c) => c.id));
+          const raw = (state.byId ?? {}) as Record<string, CustomerRuntimeState>;
+          const pruned: Record<string, CustomerRuntimeState> = {};
+          for (const kid of known) {
+            if (raw[kid]) pruned[kid] = raw[kid];
+          }
+          for (const c of SAMPLE_CUSTOMERS) {
+            if (!pruned[c.id]) pruned[c.id] = defaultRuntimeState(c);
+          }
+          let fid = state.featuredCustomerId as CustomerId;
+          if (!known.has(fid)) {
+            fid = SAMPLE_CUSTOMERS[0].id;
+          }
+          state = {
+            ...state,
+            byId: pruned,
+            featuredCustomerId: fid,
+          } as CustomerSaveState & Record<string, unknown>;
+        }
+        if (version < 4) {
+          const raw = (state.byId ?? {}) as Record<string, CustomerRuntimeState>;
+          const nextById: Record<string, CustomerRuntimeState> = {};
+          for (const c of SAMPLE_CUSTOMERS) {
+            const st = raw[c.id] ?? defaultRuntimeState(c);
+            const coherent = Math.max(
+              st.storyIndex ?? 0,
+              clampStoryIndex(c, st.affection ?? 0),
+            );
+            nextById[c.id] = { ...st, storyIndex: coherent };
+          }
+          const known = new Set(SAMPLE_CUSTOMERS.map((x) => x.id));
+          let fid = state.featuredCustomerId as CustomerId;
+          if (!known.has(fid)) fid = SAMPLE_CUSTOMERS[0].id;
+          state = {
+            ...state,
+            byId: nextById,
+            featuredCustomerId: fid,
+          } as CustomerSaveState & Record<string, unknown>;
+        }
+        if (version < 5) {
+          const known = new Set(SAMPLE_CUSTOMERS.map((c) => c.id));
+          const raw = (state.byId ?? {}) as Record<string, CustomerRuntimeState>;
+          const nextById: Record<string, CustomerRuntimeState> = {};
+          for (const c of SAMPLE_CUSTOMERS) {
+            const st = raw[c.id] ?? defaultRuntimeState(c);
+            nextById[c.id] = st;
+          }
+          const nowDayKey = state.featuredQuotaDayKey ?? 0;
+          state = {
+            ...state,
+            byId: nextById,
+            featuredCustomerId: known.has(state.featuredCustomerId as CustomerId)
+              ? (state.featuredCustomerId as CustomerId)
+              : SAMPLE_CUSTOMERS[0].id,
+            featuredDailyQuotaTotal:
+              typeof state.featuredDailyQuotaTotal === "number"
+                ? state.featuredDailyQuotaTotal
+                : 1,
+            featuredDailyQuotaUsed:
+              typeof state.featuredDailyQuotaUsed === "number"
+                ? state.featuredDailyQuotaUsed
+                : 0,
+            featuredQuotaDayKey:
+              typeof nowDayKey === "number" ? nowDayKey : 0,
+          } as CustomerSaveState & Record<string, unknown>;
+        }
+        if (version < 6) {
+          // 손님 풀 변경(핵심 손님 교체 + 일반 손님 확장) 반영: known id만 유지
+          const raw = (state.byId ?? {}) as Record<string, CustomerRuntimeState>;
+          const nextById: Record<string, CustomerRuntimeState> = {};
+          for (const c of SAMPLE_CUSTOMERS) {
+            nextById[c.id] = raw[c.id] ?? defaultRuntimeState(c);
+          }
+          state = {
+            ...state,
+            byId: nextById,
+          } as CustomerSaveState & Record<string, unknown>;
+        }
+        return state as CustomerSaveState;
+      },
       partialize: (s) => ({
         byId: s.byId,
         featuredCustomerId: s.featuredCustomerId,
+        featuredDailyQuotaTotal: s.featuredDailyQuotaTotal,
+        featuredDailyQuotaUsed: s.featuredDailyQuotaUsed,
+        featuredQuotaDayKey: s.featuredQuotaDayKey,
+        lastFeaturedDayKey: s.lastFeaturedDayKey,
       }),
     },
   ),

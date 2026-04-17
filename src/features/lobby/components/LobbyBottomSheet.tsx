@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { t } from "@/locale/i18n";
 
 type Props = {
   open: boolean;
@@ -43,8 +44,8 @@ export function LobbyBottomSheet({
     <div className="fixed inset-0 z-50 flex flex-col justify-end" role="dialog" aria-modal>
       <button
         type="button"
-        className="absolute inset-0 bg-coffee-900/35 backdrop-blur-[2px]"
-        aria-label="닫기"
+        className="absolute inset-0 z-0 bg-coffee-900/35 backdrop-blur-[2px]"
+        aria-label={t("a11y.closeSheet")}
         onClick={onClose}
       />
       <motion.div
@@ -56,7 +57,7 @@ export function LobbyBottomSheet({
             : { type: "spring", stiffness: 420, damping: 36 }
         }
         className={cn(
-          "relative mx-auto mb-[max(0.5rem,env(safe-area-inset-bottom))] w-full max-w-md",
+          "relative z-10 mx-auto mb-[max(0.5rem,env(safe-area-inset-bottom))] w-full max-w-md",
           "max-h-[min(78vh,32rem)] overflow-hidden rounded-3xl border border-white/40",
           "bg-cream-50/95 shadow-lift ring-1 ring-coffee-600/10 backdrop-blur-md",
         )}
