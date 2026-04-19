@@ -194,10 +194,10 @@ export function CafeLoopSection({
               <span className="sr-only">{t("cafe.loop.craft.shots")}</span>
               <span className="text-coffee-800">{shots}</span>
             </span>
-            <span>
-              {t("cafe.loop.craft.beans")}{" "}
+            <span className="inline-flex items-center gap-1">
+              <BeanIcon size={16} className="opacity-95" />
+              <span className="sr-only">{t("cafe.loop.craft.beans")}</span>
               <span className="text-coffee-800">{beans}</span>
-              {t("cafe.loop.craft.beansUnit")}
             </span>
           </div>
         </div>
@@ -556,10 +556,13 @@ function MenuCraftCard({
                     : "bg-[#f6ede3] text-coffee-900 ring-accent-soft/22",
                 )}
               >
-                {t("cafe.menuCraft.beansPair", {
-                  have: beans,
-                  need: rec.beans,
-                })}
+                <span className="inline-flex items-center gap-1">
+                  <BeanIcon size={15} className="opacity-95" />
+                  <span className="sr-only">{t("cafe.loop.craft.beans")}</span>
+                  <span>
+                    {beans}/{rec.beans}
+                  </span>
+                </span>
               </span>
             ) : null}
           </div>

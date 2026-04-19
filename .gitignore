@@ -12,7 +12,6 @@ tsconfig.tsbuildinfo
 
 # Local source assets copied into public runtime paths
 /sound/
-/image/ui/
 
 # Font installer/source packages; runtime uses selected TTF files only
 /font/TmoneyRoundWind.zip
