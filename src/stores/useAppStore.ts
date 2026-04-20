@@ -5,9 +5,33 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import {
   CAFE_ECONOMY,
   defaultMenuStock,
-  MENU_UNLOCK_CAFE_LEVEL,
   trySellOneRoundRobin,
 } from "@/features/meta/balance/cafeEconomy";
+import {
+  beverageIdForRecipeId,
+  createDefaultBeverageCodexState,
+  markCodexCrafted,
+  markCodexPurchased,
+  markCodexSold,
+  normalizeBeverageCodexState,
+} from "@/features/meta/content/codex";
+import {
+  activeTimeShopEntry,
+  currentTimeOfDay,
+} from "@/features/meta/content/timeShop";
+import {
+  DEFAULT_PUZZLE_BACKGROUND_SKIN_ID,
+  DEFAULT_PUZZLE_BLOCK_SKIN_ID,
+  normalizeEquippedPuzzleSkinId,
+  normalizeOwnedPuzzleSkinIds,
+  puzzleSkinDefinition,
+} from "@/features/meta/cosmetics/puzzleSkins";
+import { validateCraftDrink } from "@/features/meta/economy/crafting";
+import {
+  defaultMaterialInventory,
+  materialDefinition,
+  normalizeMaterialInventory,
+} from "@/features/meta/economy/materials";
 import {
   type CafeUpgradeTrack,
   CAFE_UPGRADE_MAX_LEVEL,
@@ -16,18 +40,36 @@ import {
   upgradeCost,
 } from "@/features/meta/balance/cafeModifiers";
 import { computePuzzleRewards } from "@/features/meta/rewards/computePuzzleRewards";
-import { STORAGE_KEY } from "@/features/meta/storage/storageKeys";
+import {
+  applyMissionEvent,
+  createDefaultAccountLevelState,
+  type MissionApplyResult,
+  normalizeAccountLevelState,
+} from "@/features/meta/progression/missionEngine";
+import {
+  canPurchaseRecipe,
+  recipePurchaseCost,
+} from "@/features/meta/progression/levelBands";
+import {
+  SAVE_SCHEMA_VERSION,
+  STORAGE_KEY,
+} from "@/features/meta/storage/storageKeys";
 import type {
+  AccountLevelState,
   AppPersistState,
+  BeverageId,
   BmEntitlementsState,
   CafeState,
   CosmeticsState,
   DrinkMenuId,
   LiveOpsSaveState,
+  MaterialId,
   MetaRuntimeState,
+  MissionEvent,
   PassProgressState,
   PlayerResources,
   PuzzleProgress,
+  PuzzleSkinId,
   SettingsState,
 } from "@/features/meta/types/gameState";
 
@@ -55,12 +97,17 @@ const defaultCafe: CafeState = {
   ambianceLevel: 1,
   espressoShots: 0,
   menuStock: defaultMenuStock(),
+  materialInventory: defaultMaterialInventory(),
+  craftedDrinkIds: [],
   displaySellingActive: false,
   lastAutoSellAtMs: 0,
   lastOfflineSaleAtMs: 0,
   lastOfflineSaleCoins: 0,
   lastOfflineSaleSoldCount: 0,
 };
+
+const defaultAccountLevel: AccountLevelState = createDefaultAccountLevelState(0);
+const defaultBeverageCodex = createDefaultBeverageCodexState();
 
 const defaultSettings: SettingsState = {
   soundOn: true,
@@ -81,6 +128,12 @@ const defaultBm: BmEntitlementsState = {
 const defaultCosmetics: CosmeticsState = {
   equippedThemeId: "default",
   ownedThemeIds: ["default"],
+  equippedPuzzleBackgroundSkinId: DEFAULT_PUZZLE_BACKGROUND_SKIN_ID,
+  equippedPuzzleBlockSkinId: DEFAULT_PUZZLE_BLOCK_SKIN_ID,
+  ownedPuzzleSkinIds: [
+    DEFAULT_PUZZLE_BACKGROUND_SKIN_ID,
+    DEFAULT_PUZZLE_BLOCK_SKIN_ID,
+  ],
 };
 
 const defaultPassProgress: PassProgressState = {
@@ -99,6 +152,8 @@ const defaultState: AppPersistState = {
   playerResources: defaultResources,
   puzzleProgress: defaultPuzzleProgress,
   cafeState: defaultCafe,
+  accountLevel: defaultAccountLevel,
+  beverageCodex: defaultBeverageCodex,
   meta: defaultMeta,
   settings: defaultSettings,
   bm: defaultBm,
@@ -113,10 +168,20 @@ export type AppStore = AppPersistState & {
   applyPuzzleRunOutcome: (input: {
     score: number;
     highestTile: number;
+    mergeCount?: number;
   }) => void;
+  /** 미션 공통 이벤트 디스패처 */
+  recordMissionEvent: (
+    input: MissionEvent | MissionEvent[],
+  ) => MissionApplyResult[];
   patchSettings: (patch: Partial<SettingsState>) => void;
   roastOnce: () => boolean;
   craftDrink: (id: DrinkMenuId) => boolean;
+  purchaseMaterial: (id: MaterialId) => boolean;
+  purchaseRecipe: (id: DrinkMenuId) => boolean;
+  purchaseTimeShopRecipe: (id: BeverageId) => boolean;
+  purchasePuzzleSkin: (id: PuzzleSkinId) => boolean;
+  equipPuzzleSkin: (id: PuzzleSkinId) => boolean;
   /** 경과 시간만큼 자동 판매 처리. 코인 획득량 반환 */
   stepAutoSell: (nowMs: number) => {
     gainedCoins: number;
@@ -141,6 +206,8 @@ export type AppStore = AppPersistState & {
   patchCafeState: (patch: Partial<CafeState>) => void;
   /** 개발자 디버그: 퍼즐 진행 강제 조정 */
   patchPuzzleProgress: (patch: Partial<PuzzleProgress>) => void;
+  /** 개발자 디버그: 계정 레벨 상태 강제 조정 */
+  patchAccountLevel: (patch: Partial<AccountLevelState>) => void;
   /** 개발자 디버그: 저장 데이터 전체 덤프 */
   exportSave: () => AppPersistState;
   /** 개발자 디버그: 저장 데이터 전체 로드(최소 검증/보정 포함) */
@@ -181,9 +248,27 @@ function mergePersisted(persisted: unknown, current: AppStore): AppStore {
     },
     cafeState: (() => {
       const merged = { ...defaultCafe, ...current.cafeState, ...p.cafeState };
+      merged.materialInventory = normalizeMaterialInventory(
+        p.cafeState?.materialInventory ??
+          current.cafeState.materialInventory ??
+          defaultCafe.materialInventory,
+      );
+      merged.craftedDrinkIds = Array.from(
+        new Set([
+          ...(current.cafeState.craftedDrinkIds ?? []),
+          ...(p.cafeState?.craftedDrinkIds ?? []),
+        ]),
+      );
       merged.cafeLevel = recomputeCafeLevel(merged);
       return merged;
     })(),
+    accountLevel: normalizeAccountLevelState(
+      p.accountLevel ?? current.accountLevel ?? defaultAccountLevel,
+      Date.now(),
+    ),
+    beverageCodex: normalizeBeverageCodexState(
+      p.beverageCodex ?? current.beverageCodex ?? defaultBeverageCodex,
+    ),
     meta: {
       ...defaultMeta,
       ...current.meta,
@@ -200,6 +285,10 @@ function mergePersisted(persisted: unknown, current: AppStore): AppStore {
       ...(p.bm ?? {}),
     },
     cosmetics: (() => {
+      const ownedPuzzleSkinIds = normalizeOwnedPuzzleSkinIds([
+        ...(current.cosmetics?.ownedPuzzleSkinIds ?? []),
+        ...(p.cosmetics?.ownedPuzzleSkinIds ?? []),
+      ]);
       const merged: CosmeticsState = {
         ...defaultCosmetics,
         ...current.cosmetics,
@@ -210,6 +299,19 @@ function mergePersisted(persisted: unknown, current: AppStore): AppStore {
             ...(current.cosmetics?.ownedThemeIds ?? []),
             ...(p.cosmetics?.ownedThemeIds ?? []),
           ]),
+        ),
+        ownedPuzzleSkinIds,
+        equippedPuzzleBackgroundSkinId: normalizeEquippedPuzzleSkinId(
+          p.cosmetics?.equippedPuzzleBackgroundSkinId ??
+            current.cosmetics?.equippedPuzzleBackgroundSkinId,
+          "background",
+          ownedPuzzleSkinIds,
+        ),
+        equippedPuzzleBlockSkinId: normalizeEquippedPuzzleSkinId(
+          p.cosmetics?.equippedPuzzleBlockSkinId ??
+            current.cosmetics?.equippedPuzzleBlockSkinId,
+          "blocks",
+          ownedPuzzleSkinIds,
         ),
       };
       if (!merged.ownedThemeIds.includes(merged.equippedThemeId)) {
@@ -248,11 +350,62 @@ function mergePersisted(persisted: unknown, current: AppStore): AppStore {
   };
 }
 
+function migratePersistedState(persisted: unknown): unknown {
+  if (!persisted || typeof persisted !== "object") return persisted;
+  const state = persisted as Partial<AppPersistState>;
+  return {
+    ...state,
+    cafeState: {
+      ...state.cafeState,
+      materialInventory: normalizeMaterialInventory(
+        state.cafeState?.materialInventory,
+      ),
+      craftedDrinkIds: state.cafeState?.craftedDrinkIds ?? [],
+    },
+    accountLevel: normalizeAccountLevelState(state.accountLevel),
+    beverageCodex: normalizeBeverageCodexState(state.beverageCodex),
+    cosmetics: {
+      ...defaultCosmetics,
+      ...(state.cosmetics ?? {}),
+      ownedPuzzleSkinIds: normalizeOwnedPuzzleSkinIds(
+        state.cosmetics?.ownedPuzzleSkinIds,
+      ),
+    },
+  };
+}
+
 export const useAppStore = create<AppStore>()(
   persist(
     (set, get) => ({
       ...defaultState,
-      applyPuzzleRunOutcome: ({ score, highestTile }) => {
+      recordMissionEvent: (input) => {
+        const events = Array.isArray(input) ? input : [input];
+        const results: MissionApplyResult[] = [];
+        if (events.length === 0) return results;
+
+        set((s) => {
+          let accountLevel = normalizeAccountLevelState(s.accountLevel);
+          let playerResources = s.playerResources;
+
+          for (const event of events) {
+            const result = applyMissionEvent(accountLevel, event);
+            accountLevel = result.account;
+            if (result.rewards.coins > 0 || result.rewards.beans > 0) {
+              playerResources = {
+                ...playerResources,
+                coins: playerResources.coins + result.rewards.coins,
+                beans: playerResources.beans + result.rewards.beans,
+              };
+            }
+            results.push(result);
+          }
+
+          return { accountLevel, playerResources };
+        });
+
+        return results;
+      },
+      applyPuzzleRunOutcome: ({ score, highestTile, mergeCount = 0 }) => {
         const rewards = computePuzzleRewards(score, highestTile);
         const prev = get();
         const nextBestScore = Math.max(prev.puzzleProgress.bestScore, score);
@@ -274,6 +427,15 @@ export const useAppStore = create<AppStore>()(
             totalRuns: prev.puzzleProgress.totalRuns + 1,
           },
         });
+        get().recordMissionEvent({
+          type: "puzzleRunCompleted",
+          score,
+          highestTile,
+          mergeCount,
+          coins: rewards.coins,
+          beans: rewards.beans,
+          hearts: rewards.hearts,
+        });
       },
       patchSettings: (patch) =>
         set((s) => ({ settings: { ...s.settings, ...patch } })),
@@ -283,6 +445,8 @@ export const useAppStore = create<AppStore>()(
         const m = getCafeRuntimeModifiers(cafe);
         if (prev.playerResources.beans < m.roastBeanCost) return false;
         if (cafe.espressoShots >= m.maxShots) return false;
+        const nextShots = Math.min(m.maxShots, cafe.espressoShots + m.shotYield);
+        const shotsMade = nextShots - cafe.espressoShots;
         set({
           playerResources: {
             ...prev.playerResources,
@@ -290,22 +454,34 @@ export const useAppStore = create<AppStore>()(
           },
           cafeState: {
             ...cafe,
-            espressoShots: Math.min(
-              m.maxShots,
-              cafe.espressoShots + m.shotYield,
-            ),
+            espressoShots: nextShots,
           },
         });
+        get().recordMissionEvent([
+          { type: "beansRoasted", amount: m.roastBeanCost },
+          { type: "shotsCreated", amount: shotsMade },
+        ]);
         return true;
       },
       craftDrink: (id: DrinkMenuId) => {
         const prev = get();
         const cafe = prev.cafeState;
-        const requiredCafeLevel = MENU_UNLOCK_CAFE_LEVEL[id] ?? 1;
-        if (cafe.cafeLevel < requiredCafeLevel) return false;
+        const account = normalizeAccountLevelState(prev.accountLevel);
         const rec = CAFE_ECONOMY.recipe[id];
-        if (cafe.espressoShots < rec.shots) return false;
-        if (prev.playerResources.beans < rec.beans) return false;
+        const validation = validateCraftDrink({
+          id,
+          account,
+          cafeState: cafe,
+          beans: prev.playerResources.beans,
+        });
+        if (!validation.canCraft) return false;
+        const nextMaterialInventory = { ...cafe.materialInventory };
+        for (const [rawId, amount] of Object.entries(rec.materials)) {
+          const materialId = rawId as MaterialId;
+          nextMaterialInventory[materialId] =
+            (nextMaterialInventory[materialId] ?? 0) - (amount ?? 0);
+        }
+        const wasFirstCraft = !cafe.craftedDrinkIds.includes(id);
         set({
           playerResources: {
             ...prev.playerResources,
@@ -314,10 +490,151 @@ export const useAppStore = create<AppStore>()(
           cafeState: {
             ...cafe,
             espressoShots: cafe.espressoShots - rec.shots,
+            materialInventory: nextMaterialInventory,
+            craftedDrinkIds: wasFirstCraft
+              ? [...cafe.craftedDrinkIds, id]
+              : cafe.craftedDrinkIds,
             menuStock: {
               ...cafe.menuStock,
               [id]: cafe.menuStock[id] + 1,
             },
+          },
+          beverageCodex: markCodexCrafted(
+            prev.beverageCodex,
+            beverageIdForRecipeId(id),
+          ),
+        });
+        get().recordMissionEvent(
+          wasFirstCraft
+            ? [
+                { type: "drinkCrafted", drinkId: id, amount: 1 },
+                {
+                  type: "collectionRegistered",
+                  collectionKind: "recipe",
+                  id,
+                },
+              ]
+            : { type: "drinkCrafted", drinkId: id, amount: 1 },
+        );
+        return true;
+      },
+      purchaseMaterial: (id: MaterialId) => {
+        const prev = get();
+        const material = materialDefinition(id);
+        if (prev.playerResources.coins < material.coinCost) return false;
+        set({
+          playerResources: {
+            ...prev.playerResources,
+            coins: prev.playerResources.coins - material.coinCost,
+          },
+          cafeState: {
+            ...prev.cafeState,
+            materialInventory: {
+              ...prev.cafeState.materialInventory,
+              [id]:
+                (prev.cafeState.materialInventory[id] ?? 0) +
+                material.purchaseAmount,
+            },
+          },
+        });
+        return true;
+      },
+      purchaseRecipe: (id: DrinkMenuId) => {
+        const prev = get();
+        const account = normalizeAccountLevelState(prev.accountLevel);
+        if (!account.unlockedRecipeIds.includes(id)) return false;
+        if (account.purchasedRecipeIds.includes(id)) return true;
+        const cost = recipePurchaseCost(id);
+        if (!canPurchaseRecipe(account, id, prev.playerResources.coins)) return false;
+        set({
+          playerResources: {
+            ...prev.playerResources,
+            coins: prev.playerResources.coins - cost,
+          },
+          accountLevel: {
+            ...account,
+            purchasedRecipeIds: [...account.purchasedRecipeIds, id],
+          },
+          beverageCodex: markCodexPurchased(
+            prev.beverageCodex,
+            beverageIdForRecipeId(id),
+          ),
+        });
+        get().recordMissionEvent({
+          type: "recipePurchased",
+          recipeId: id,
+          timeOfDay: currentTimeOfDay(),
+        });
+        return true;
+      },
+      purchaseTimeShopRecipe: (id: BeverageId) => {
+        const prev = get();
+        const account = normalizeAccountLevelState(prev.accountLevel);
+        const timeOfDay = currentTimeOfDay();
+        const entry = activeTimeShopEntry(id, timeOfDay);
+        if (!entry) return false;
+        if (account.level < entry.requiredLevel) return false;
+        if (prev.beverageCodex.purchasedTimeRecipeIds.includes(id)) return true;
+        if (prev.playerResources.coins < entry.price) return false;
+        set({
+          playerResources: {
+            ...prev.playerResources,
+            coins: prev.playerResources.coins - entry.price,
+          },
+          beverageCodex: markCodexPurchased(
+            {
+              ...prev.beverageCodex,
+              purchasedTimeRecipeIds: [
+                ...prev.beverageCodex.purchasedTimeRecipeIds,
+                id,
+              ],
+            },
+            id,
+          ),
+        });
+        get().recordMissionEvent({
+          type: "timeRecipePurchased",
+          beverageId: id,
+          timeOfDay,
+        });
+        return true;
+      },
+      purchasePuzzleSkin: (id: PuzzleSkinId) => {
+        const prev = get();
+        const account = normalizeAccountLevelState(prev.accountLevel);
+        const skin = puzzleSkinDefinition(id);
+        if (prev.cosmetics.ownedPuzzleSkinIds.includes(id)) return true;
+        if (account.level < skin.requiredLevel) return false;
+        if (prev.playerResources.coins < skin.coinCost) return false;
+        set({
+          playerResources: {
+            ...prev.playerResources,
+            coins: prev.playerResources.coins - skin.coinCost,
+          },
+          cosmetics: {
+            ...prev.cosmetics,
+            ownedPuzzleSkinIds: [
+              ...prev.cosmetics.ownedPuzzleSkinIds,
+              id,
+            ],
+          },
+        });
+        get().recordMissionEvent({
+          type: "skinPurchased",
+          skinId: id,
+        });
+        return true;
+      },
+      equipPuzzleSkin: (id: PuzzleSkinId) => {
+        const prev = get();
+        const skin = puzzleSkinDefinition(id);
+        if (!prev.cosmetics.ownedPuzzleSkinIds.includes(id)) return false;
+        set({
+          cosmetics: {
+            ...prev.cosmetics,
+            ...(skin.kind === "background"
+              ? { equippedPuzzleBackgroundSkinId: id }
+              : { equippedPuzzleBlockSkinId: id }),
           },
         });
         return true;
@@ -388,9 +705,18 @@ export const useAppStore = create<AppStore>()(
 
         const remaining =
           menuStock.americano + menuStock.latte + menuStock.affogato;
+        let beverageCodex = prev.beverageCodex;
+        for (const [rawId, amount] of Object.entries(soldByMenu)) {
+          beverageCodex = markCodexSold(
+            beverageCodex,
+            beverageIdForRecipeId(rawId as DrinkMenuId),
+            amount ?? 0,
+          );
+        }
 
         set({
           playerResources: { ...prev.playerResources, coins },
+          beverageCodex,
           cafeState: {
             ...cafe,
             menuStock,
@@ -398,6 +724,16 @@ export const useAppStore = create<AppStore>()(
             displaySellingActive: remaining > 0,
           },
         });
+        get().recordMissionEvent([
+          {
+            type: "drinkSold",
+            amount: soldCount,
+            soldByMenu,
+            coins: gained,
+            timeOfDay: currentTimeOfDay(),
+          },
+          { type: "coinsEarned", amount: gained, source: "sale" },
+        ]);
         return {
           gainedCoins: gained,
           soldCount,
@@ -496,12 +832,21 @@ export const useAppStore = create<AppStore>()(
             ...patch,
           },
         })),
+      patchAccountLevel: (patch) =>
+        set((s) => ({
+          accountLevel: normalizeAccountLevelState({
+            ...s.accountLevel,
+            ...patch,
+          }),
+        })),
       exportSave: () => {
         const s = get();
         return {
           playerResources: s.playerResources,
           puzzleProgress: s.puzzleProgress,
           cafeState: s.cafeState,
+          accountLevel: s.accountLevel,
+          beverageCodex: s.beverageCodex,
           meta: s.meta,
           settings: s.settings,
           bm: s.bm,
@@ -520,6 +865,8 @@ export const useAppStore = create<AppStore>()(
           playerResources: merged.playerResources,
           puzzleProgress: merged.puzzleProgress,
           cafeState: merged.cafeState,
+          accountLevel: merged.accountLevel,
+          beverageCodex: merged.beverageCodex,
           meta: merged.meta,
           settings: merged.settings,
           bm: merged.bm,
@@ -541,10 +888,26 @@ export const useAppStore = create<AppStore>()(
         set((s) => ({ bm: { ...s.bm, ...patch } })),
       patchCosmetics: (patch) =>
         set((s) => {
+          const ownedPuzzleSkinIds = normalizeOwnedPuzzleSkinIds(
+            patch.ownedPuzzleSkinIds ?? s.cosmetics.ownedPuzzleSkinIds,
+          );
           const next: CosmeticsState = {
             ...s.cosmetics,
             ...patch,
             ownedThemeIds: patch.ownedThemeIds ?? s.cosmetics.ownedThemeIds,
+            ownedPuzzleSkinIds,
+            equippedPuzzleBackgroundSkinId: normalizeEquippedPuzzleSkinId(
+              patch.equippedPuzzleBackgroundSkinId ??
+                s.cosmetics.equippedPuzzleBackgroundSkinId,
+              "background",
+              ownedPuzzleSkinIds,
+            ),
+            equippedPuzzleBlockSkinId: normalizeEquippedPuzzleSkinId(
+              patch.equippedPuzzleBlockSkinId ??
+                s.cosmetics.equippedPuzzleBlockSkinId,
+              "blocks",
+              ownedPuzzleSkinIds,
+            ),
           };
           if (!next.ownedThemeIds.includes(next.equippedThemeId)) {
             next.equippedThemeId = "default";
@@ -567,6 +930,12 @@ export const useAppStore = create<AppStore>()(
           ownedProductIds: Array.from(owned),
           cosmetics: { ...prev.cosmetics, ownedThemeIds: Array.from(themes) },
         });
+        if (unlockThemeIds.length > 0) {
+          get().recordMissionEvent({
+            type: "skinPurchased",
+            skinId: unlockThemeIds[0]!,
+          });
+        }
       },
       patchPassProgress: (patch) =>
         set((s) => ({
@@ -632,7 +1001,8 @@ export const useAppStore = create<AppStore>()(
     {
       name: STORAGE_KEY,
       storage: createJSONStorage(() => localStorage),
-      version: 1,
+      version: SAVE_SCHEMA_VERSION,
+      migrate: (persistedState) => migratePersistedState(persistedState),
       merge: mergePersisted,
     },
   ),

@@ -4,6 +4,8 @@ import { motion } from "framer-motion";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 import { cn } from "@/lib/utils";
 import { usePuzzleSessionStore } from "@/features/puzzle2048/store/usePuzzleSessionStore";
+import { puzzleTileClassForSkin } from "@/features/meta/cosmetics/puzzleSkins";
+import { useAppStore } from "@/stores/useAppStore";
 import type { PlacedTile } from "../utils/boardToTiles";
 import { tileClassForValue, tileFontSize } from "../utils/tileStyle";
 import { usePuzzleBoardMetrics } from "./PuzzleBoardMetricsContext";
@@ -14,6 +16,9 @@ function lerp(a: number, b: number, t: number) {
 
 export function PuzzleTile({ tile }: { tile: PlacedTile }) {
   const reduce = useReducedMotionPreference();
+  const blockSkinId = useAppStore(
+    (s) => s.cosmetics.equippedPuzzleBlockSkinId,
+  );
   const { gap, pad, side, tileSize } = usePuzzleBoardMetrics();
   const compact = side > 0 && side < 304;
   const mergeStrength = usePuzzleSessionStore(
@@ -62,6 +67,7 @@ export function PuzzleTile({ tile }: { tile: PlacedTile }) {
       className={cn(
         "absolute left-0 top-0 flex select-none items-center justify-center rounded-xl font-bold tabular-nums will-change-transform sm:rounded-2xl",
         tileClassForValue(tile.value),
+        puzzleTileClassForSkin(blockSkinId, tile.value),
         tileFontSize(tile.value, compact),
       )}
     >

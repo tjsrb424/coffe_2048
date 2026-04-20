@@ -13,9 +13,19 @@ import { getCafeRuntimeModifiers } from "@/features/meta/balance/cafeModifiers";
 import {
   CAFE_ECONOMY,
   MENU_ORDER,
-  MENU_UNLOCK_CAFE_LEVEL,
 } from "@/features/meta/balance/cafeEconomy";
-import type { DrinkMenuId } from "@/features/meta/types/gameState";
+import {
+  missingMaterialsLine,
+  validateCraftDrink,
+  type CraftValidation,
+} from "@/features/meta/economy/crafting";
+import { materialDefinition } from "@/features/meta/economy/materials";
+import { normalizeAccountLevelState } from "@/features/meta/progression/missionEngine";
+import type {
+  DrinkMenuId,
+  MaterialId,
+  MaterialInventory,
+} from "@/features/meta/types/gameState";
 import { t } from "@/locale/i18n";
 import { useAppStore } from "@/stores/useAppStore";
 import { useGameFeedback } from "@/hooks/useGameFeedback";
@@ -32,9 +42,11 @@ export function CafeLoopSection({
   sections?: CafeLoopSectionKey[];
 }) {
   const beans = useAppStore((s) => s.playerResources.beans);
+  const accountLevel = useAppStore((s) => s.accountLevel);
   const cafe = useAppStore((s) => s.cafeState);
   const shots = useAppStore((s) => s.cafeState.espressoShots);
   const menuStock = useAppStore((s) => s.cafeState.menuStock);
+  const materialInventory = useAppStore((s) => s.cafeState.materialInventory);
   const displaySellingActive = useAppStore((s) => s.cafeState.displaySellingActive);
   const lastAuto = useAppStore((s) => s.cafeState.lastAutoSellAtMs);
   const roastOnce = useAppStore((s) => s.roastOnce);
@@ -55,6 +67,7 @@ export function CafeLoopSection({
   const totalStock =
     menuStock.americano + menuStock.latte + menuStock.affogato;
   const reduceMotion = !!useReducedMotion();
+  const account = normalizeAccountLevelState(accountLevel);
 
   const roastBlockReason =
     shots >= m.maxShots
@@ -207,12 +220,15 @@ export function CafeLoopSection({
               key={id}
               id={id}
               stock={menuStock[id]}
-              locked={cafe.cafeLevel < (MENU_UNLOCK_CAFE_LEVEL[id] ?? 1)}
-              requiredCafeLevel={MENU_UNLOCK_CAFE_LEVEL[id] ?? 1}
-              shotsOk={shots >= CAFE_ECONOMY.recipe[id].shots}
-              beansOk={beans >= CAFE_ECONOMY.recipe[id].beans}
+              validation={validateCraftDrink({
+                id,
+                account,
+                cafeState: cafe,
+                beans,
+              })}
               shots={shots}
               beans={beans}
+              materialInventory={materialInventory}
               onCraft={() => {
                 lightTap();
                 craftDrink(id);
@@ -437,34 +453,41 @@ function menuEmoji(id: DrinkMenuId): string {
 function MenuCraftCard({
   id,
   stock,
-  locked,
-  requiredCafeLevel,
-  shotsOk,
-  beansOk,
+  validation,
   shots,
   beans,
+  materialInventory,
   onCraft,
 }: {
   id: DrinkMenuId;
   stock: number;
-  locked: boolean;
-  requiredCafeLevel: number;
-  shotsOk: boolean;
-  beansOk: boolean;
+  validation: CraftValidation;
   shots: number;
   beans: number;
+  materialInventory: MaterialInventory;
   onCraft: () => void;
 }) {
   const rec = CAFE_ECONOMY.recipe[id];
-  const can = !locked && shotsOk && beansOk;
+  const needsPurchase =
+    validation.recipeUnlocked && !validation.recipePurchased;
+  const can = validation.canCraft;
   const needsBeans = rec.beans > 0;
+  const materialRequirements = Object.entries(rec.materials) as Array<
+    [MaterialId, number]
+  >;
 
-  const blockLine = locked
-    ? t("cafe.menuCraft.unlock", { level: requiredCafeLevel })
-    : !shotsOk
+  const blockLine = !validation.recipeUnlocked
+    ? "레벨을 올리면 노트가 열려요."
+    : needsPurchase
+      ? "상점에서 레시피를 담아주세요."
+    : !validation.shotsOk
       ? t("cafe.menuCraft.needShots", { have: shots, need: rec.shots })
-      : !beansOk && needsBeans
+      : !validation.beansOk && needsBeans
         ? t("cafe.menuCraft.needBeans", { have: beans, need: rec.beans })
+      : !validation.materialsOk
+        ? `재료가 부족해요 · ${missingMaterialsLine(
+            validation.missingMaterials,
+          )}`
         : t("cafe.menuCraft.blockGeneric");
 
   return (
@@ -517,9 +540,13 @@ function MenuCraftCard({
               <span className="rounded-full bg-accent-soft/14 px-2 py-0.5 text-[10px] font-semibold text-coffee-800 ring-1 ring-accent-soft/22">
                 {t("cafe.menuCraft.badge.can")}
               </span>
+            ) : needsPurchase ? (
+              <span className="rounded-full bg-accent-soft/14 px-2 py-0.5 text-[10px] font-semibold text-coffee-800 ring-1 ring-accent-soft/22">
+                상점 필요
+              </span>
             ) : (
               <span className="rounded-full bg-coffee-900/5 px-2 py-0.5 text-[10px] font-semibold text-coffee-600/70 ring-1 ring-coffee-600/10">
-                {locked
+                {!validation.recipeUnlocked
                   ? t("cafe.menuCraft.badge.locked")
                   : t("cafe.menuCraft.badge.blocked")}
               </span>
@@ -534,7 +561,7 @@ function MenuCraftCard({
             <span
               className={cn(
                 "rounded-full px-2 py-0.5 ring-1",
-                shotsOk
+                validation.shotsOk
                   ? "bg-cream-50/80 text-coffee-800 ring-coffee-600/10"
                   : "bg-[#f6ede3] text-coffee-900 ring-accent-soft/22",
               )}
@@ -551,7 +578,7 @@ function MenuCraftCard({
               <span
                 className={cn(
                   "rounded-full px-2 py-0.5 ring-1",
-                  beansOk
+                  validation.beansOk
                     ? "bg-cream-50/80 text-coffee-800 ring-coffee-600/10"
                     : "bg-[#f6ede3] text-coffee-900 ring-accent-soft/22",
                 )}
@@ -565,6 +592,23 @@ function MenuCraftCard({
                 </span>
               </span>
             ) : null}
+            {materialRequirements.map(([materialId, need]) => {
+              const have = materialInventory[materialId] ?? 0;
+              const ok = have >= need;
+              return (
+                <span
+                  key={materialId}
+                  className={cn(
+                    "rounded-full px-2 py-0.5 ring-1",
+                    ok
+                      ? "bg-cream-50/80 text-coffee-800 ring-coffee-600/10"
+                      : "bg-[#f6ede3] text-coffee-900 ring-accent-soft/22",
+                  )}
+                >
+                  {materialDefinition(materialId).name} {have}/{need}
+                </span>
+              );
+            })}
           </div>
 
           {!can ? (

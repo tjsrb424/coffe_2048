@@ -33,6 +33,7 @@ import {
   CafeLoopSection,
   type CafeLoopSectionKey,
 } from "./CafeLoopSection";
+import { CafeShopSection } from "./CafeShopSection";
 import { LobbyBottomSheet } from "./LobbyBottomSheet";
 import { RoasterSheetTopOverlap } from "./RoasterSheetTopOverlap";
 import { WorkbenchSheetTopOverlap } from "./WorkbenchSheetTopOverlap";
@@ -42,6 +43,7 @@ import { OfflineSalesCard } from "./OfflineSalesCard";
 import { CounterSheetTodayGuestHint } from "@/features/customers/components/CustomerPresenceHints";
 import { ResourceBar } from "./ResourceBar";
 import { LobbyPanelQuerySync } from "./LobbyPanelQuerySync";
+import { AccountLevelCard } from "./AccountLevelCard";
 
 type OpenSheet = {
   sheet: LobbySheetId;
@@ -114,6 +116,9 @@ export function LobbyScreen() {
       </Suspense>
       <AppShell className="pt-1.5 sm:pt-2.5">
         <header className="relative mb-1.5 flex flex-col gap-0.5">
+          <div className="absolute left-0 top-0 z-20">
+            <AccountLevelCard />
+          </div>
           <div className="absolute right-0 top-0 z-20">
             <LobbyTopMenu
               open={menuOpen}
@@ -168,6 +173,9 @@ export function LobbyScreen() {
           onOpenCounter={() => {
             if (soundOn) playCounterOpen();
             openSheet("counter");
+          }}
+          onOpenShop={() => {
+            openSheet("shop");
           }}
           onOpenPuzzle={() => {
             if (!consumeHeart()) return;
@@ -266,7 +274,11 @@ export function LobbyScreen() {
             </div>
           </>
         )}
-        {open && open.sheet !== "puzzle" && open.sheet !== "roast" ? (
+        {open?.sheet === "shop" && <CafeShopSection />}
+        {open &&
+        open.sheet !== "puzzle" &&
+        open.sheet !== "roast" &&
+        open.sheet !== "shop" ? (
           <p className="mt-4 text-center text-xs text-coffee-600/70">
             <Link
               href="/cafe"
@@ -375,6 +387,8 @@ function LobbyTopMenu({
               {[
                 { href: "/settings", label: t("nav.settings") },
                 { href: "/shop", label: t("nav.shop") },
+                { href: "/codex", label: t("nav.codex") },
+                { href: "/time-shop", label: t("nav.timeShop") },
                 { href: "/menu", label: t("nav.menu") },
               ].map((item) => (
                 <motion.div
@@ -405,15 +419,17 @@ function LobbyOpsDashboard({
   onOpenRoast,
   onOpenShowcase,
   onOpenCounter,
+  onOpenShop,
   onOpenPuzzle,
 }: {
   onOpenRoast: () => void;
   onOpenShowcase: () => void;
   onOpenCounter: () => void;
+  onOpenShop: () => void;
   onOpenPuzzle: () => void;
 }) {
   const tileConfigs: Array<{
-    key: "roast" | "showcase" | "counter" | "empty";
+    key: "roast" | "showcase" | "counter" | "shop";
     title?: string;
     onClick?: () => void;
     topImageSrc?: string;
@@ -452,7 +468,9 @@ function LobbyOpsDashboard({
       topImageWrapperClassName: "top-[0.55rem] sm:top-[0.65rem]",
     },
     {
-      key: "empty",
+      key: "shop",
+      title: t("lobby.tile.shop.title"),
+      onClick: onOpenShop,
     },
   ];
 

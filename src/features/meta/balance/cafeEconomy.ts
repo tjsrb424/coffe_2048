@@ -1,12 +1,14 @@
 import type { DrinkMenuId, MenuStock } from "@/features/meta/types/gameState";
+import { PRICING_DEFINITIONS } from "@/features/meta/economy/pricing";
+import { RECIPE_DEFINITIONS } from "@/features/meta/economy/recipes";
 
 export const MENU_ORDER: DrinkMenuId[] = ["americano", "latte", "affogato"];
 
 /** 메뉴 해금 기준 — Phase 4 성장 구조(최소 버전) */
 export const MENU_UNLOCK_CAFE_LEVEL: Record<DrinkMenuId, number> = {
-  americano: 1,
-  latte: 2,
-  affogato: 3,
+  americano: RECIPE_DEFINITIONS.americano.levelRequired,
+  latte: RECIPE_DEFINITIONS.latte.levelRequired,
+  affogato: RECIPE_DEFINITIONS.affogato.levelRequired,
 };
 
 export const CAFE_ECONOMY = {
@@ -16,15 +18,11 @@ export const CAFE_ECONOMY = {
   autoSellIntervalMs: 4000,
   /** 한 번에 돌릴 최대 판매 틱 (오프라인·복귀 시 폭주 방지) */
   autoSellMaxTicks: 18,
-  recipe: {
-    americano: { shots: 1, beans: 0 },
-    latte: { shots: 1, beans: 1 },
-    affogato: { shots: 1, beans: 1 },
-  },
+  recipe: RECIPE_DEFINITIONS,
   sellPrice: {
-    americano: 10,
-    latte: 16,
-    affogato: 22,
+    americano: PRICING_DEFINITIONS.americano.sellPrice,
+    latte: PRICING_DEFINITIONS.latte.sellPrice,
+    affogato: PRICING_DEFINITIONS.affogato.sellPrice,
   },
 } as const;
 

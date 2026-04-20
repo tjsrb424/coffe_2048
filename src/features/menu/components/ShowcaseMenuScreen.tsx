@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
+import { LobbyReturnButton } from "@/components/navigation/LobbyReturnButton";
 import { Card } from "@/components/ui/Card";
 import { DRINK_MENU_TEXT_IDS } from "@/data/drinkMenuTextIds";
 import {
@@ -62,6 +63,8 @@ export function ShowcaseMenuScreen() {
             ))}
           </ul>
         </Card>
+
+        <LobbyReturnButton />
       </AppShell>
     </>
   );

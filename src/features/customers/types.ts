@@ -1,4 +1,11 @@
-import type { DrinkMenuId } from "@/features/meta/types/gameState";
+import type {
+  BeverageCategoryId,
+  BeverageId,
+  BeverageRarity,
+  DrinkMenuId,
+  MaterialId,
+  TimeOfDayId,
+} from "@/features/meta/types/gameState";
 import type { MessageId } from "@locale/messages/ko";
 
 export type CustomerId = string;
@@ -27,6 +34,13 @@ export type CustomerProfile = {
   introTextId?: MessageId;
   tags: CustomerTag[];
   preferredMenus: DrinkMenuId[];
+  reactionHooks?: {
+    beverageCategories?: BeverageCategoryId[];
+    materialIds?: MaterialId[];
+    timeOfDayIds?: TimeOfDayId[];
+    rarities?: BeverageRarity[];
+    firstSaleBeverageIds?: BeverageId[];
+  };
   /** 초기 애정도(세이브/밸런스) */
   baseAffection: number;
   /** 스토리 단계(최소 2개) */

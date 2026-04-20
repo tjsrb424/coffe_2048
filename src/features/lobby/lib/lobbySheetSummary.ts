@@ -56,6 +56,8 @@ export function buildLobbySheetSummary(
         hearts: playerResources.hearts,
         bestTile: puzzleProgress.bestTile,
       });
+    case "shop":
+      return t("lobby.summary.shop", { coins: playerResources.coins });
     default:
       return "";
   }

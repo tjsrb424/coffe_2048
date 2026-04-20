@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
+import { LobbyReturnButton } from "@/components/navigation/LobbyReturnButton";
 import { Card } from "@/components/ui/Card";
 import { useGameFeedback } from "@/hooks/useGameFeedback";
 import { useResetDocumentScrollOnMount } from "@/hooks/useResetDocumentScrollOnMount";
@@ -65,6 +66,8 @@ export function SettingsHubScreen() {
             onTap={lightTap}
           />
         </Card>
+
+        <LobbyReturnButton />
       </AppShell>
     </>
   );

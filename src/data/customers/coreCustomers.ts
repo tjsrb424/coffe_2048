@@ -12,6 +12,11 @@ export const CORE_CUSTOMERS: CustomerProfile[] = [
     introTextId: "customer.han_eun.intro",
     tags: ["quiet", "espresso_lover"],
     preferredMenus: ["americano"],
+    reactionHooks: {
+      beverageCategories: ["espressoBasic"],
+      rarities: ["common", "uncommon"],
+      firstSaleBeverageIds: ["americano"],
+    },
     baseAffection: 0,
     storySteps: [
       {
@@ -32,6 +37,12 @@ export const CORE_CUSTOMERS: CustomerProfile[] = [
     introTextId: "customer.hyo_im.intro",
     tags: ["sweet_tooth"],
     preferredMenus: ["affogato", "latte"],
+    reactionHooks: {
+      beverageCategories: ["sweetLatte", "mochaDessert"],
+      materialIds: ["cream", "vanillaSyrup", "caramelSyrup"],
+      rarities: ["rare", "signature"],
+      firstSaleBeverageIds: ["affogato"],
+    },
     baseAffection: 1,
     storySteps: [
       {
@@ -52,6 +63,11 @@ export const CORE_CUSTOMERS: CustomerProfile[] = [
     introTextId: "customer.seo_jun.intro",
     tags: ["late_night"],
     preferredMenus: ["latte"],
+    reactionHooks: {
+      beverageCategories: ["timeLimited", "mochaDessert"],
+      timeOfDayIds: ["night", "evening"],
+      rarities: ["rare", "signature"],
+    },
     baseAffection: 0,
     storySteps: [
       {
@@ -72,6 +88,12 @@ export const CORE_CUSTOMERS: CustomerProfile[] = [
     introTextId: "customer.so_yeon.intro",
     tags: ["regular"],
     preferredMenus: ["latte"],
+    reactionHooks: {
+      beverageCategories: ["milkCoffee", "teaLatte"],
+      materialIds: ["milk", "blackTeaBase", "matchaPowder"],
+      rarities: ["common", "uncommon"],
+      firstSaleBeverageIds: ["latte"],
+    },
     baseAffection: 0,
     storySteps: [
       {
@@ -92,6 +114,12 @@ export const CORE_CUSTOMERS: CustomerProfile[] = [
     introTextId: "customer.dong_hyun.intro",
     tags: ["regular", "espresso_lover"],
     preferredMenus: ["americano", "affogato"],
+    reactionHooks: {
+      beverageCategories: ["espressoBasic", "rareIngredient"],
+      materialIds: ["rareIngredient", "mochaSauce"],
+      rarities: ["rare", "signature", "legendary"],
+      firstSaleBeverageIds: ["americano", "affogato"],
+    },
     baseAffection: 0,
     storySteps: [
       {

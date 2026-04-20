@@ -7,9 +7,11 @@ export const koMessages = {
   "nav.settings": "설정",
   "nav.shop": "상점",
   "nav.menu": "메뉴",
+  "nav.codex": "도감",
+  "nav.timeShop": "떠돌이 판매상",
   "lobby.srOnly.todayShop": "오늘의 매장",
   "lobby.onboarding.hint":
-    "아래 카드에서 로스터·쇼케이스·카운터·퍼즐을 바로 열 수 있어요.",
+    "아래 카드에서 로스터·작업대·계산대·상점을 바로 열 수 있어요.",
   "lobby.onboarding.dismiss": "알겠어요",
   "lobby.cafeFallback.title": "카페(스크롤형 운영)",
   "lobby.cafeFallback.suffix": "에서도 같은 작업을 할 수 있어요.",
@@ -34,6 +36,12 @@ export const koMessages = {
   "lobby.sheet.puzzle.description": "하트 1개로 시작해요.",
   "lobby.sheet.puzzle.body": "원두를 모으러 한 판 들어가요.",
 
+  "lobby.sheet.shop.title": "상점",
+  "lobby.sheet.shop.tagline": "재료와 레시피를 준비해요",
+  "lobby.sheet.shop.description":
+    "코인으로 재료를 사고, 열린 레시피를 담아요.",
+  "lobby.sheet.shop.body": "필요한 재료부터 차분히 채워요.",
+
   "lobby.summary.roast": "베이스 {{shots}}샷 · 원두 {{beans}}단",
   "lobby.summary.showcase.empty": "진열 합계 0잔 · 메뉴 제작으로 채워요",
   "lobby.summary.showcase.idle": "진열 {{stock}}잔 · 판매 대기",
@@ -45,6 +53,7 @@ export const koMessages = {
   "lobby.summary.counter.stockIdle": "진열 {{stock}}잔 · 판매 개시 전",
   "lobby.summary.counter.stockSelling": "진열 {{stock}}잔 · 판매 중",
   "lobby.summary.puzzle": "하트 {{hearts}} · 베스트 타일 {{bestTile}}",
+  "lobby.summary.shop": "보유 코인 {{coins}} · 재료와 레시피 준비",
 
   "lobby.ops.craftHint.craftable": "제작 가능",
   "lobby.ops.craftHint.baseShort": "베이스 부족",
@@ -72,6 +81,7 @@ export const koMessages = {
   "lobby.card.showcase.desc2": "진열을 채운 뒤 판매를 개시해요.",
   "lobby.card.showcase.cta": "메뉴 제작",
   "lobby.tile.counter.title": "계산대",
+  "lobby.tile.shop.title": "상점",
 
   "lobby.card.label.counter": "카운터",
   "lobby.card.counter.sellingLive.prefix": "판매 중 · 약",

@@ -10,9 +10,6 @@ playwright-report/
 test-results/
 tsconfig.tsbuildinfo
 
-# Local source assets copied into public runtime paths
-/sound/
-
 # Font installer/source packages; runtime uses selected TTF files only
 /font/TmoneyRoundWind.zip
 /font/TmoneyRoundWind/01_*/

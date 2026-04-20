@@ -73,12 +73,13 @@ export function PuzzleScreen() {
   }, [hearts, startFresh]);
 
   const buildResultPayload = useCallback((): SessionResultPayload => {
-    const { score, highestTile } = readPuzzleOutcomeFromState(
+    const { score, highestTile, mergeCount } = readPuzzleOutcomeFromState(
       usePuzzleSessionStore.getState(),
     );
     return {
       score,
       highestTile,
+      mergeCount,
       rewards: computePuzzleRewards(score, highestTile),
     };
   }, []);
@@ -109,6 +110,7 @@ export function PuzzleScreen() {
     applyOutcome({
       score: resultPayload.score,
       highestTile: resultPayload.highestTile,
+      mergeCount: resultPayload.mergeCount,
     });
     const prog = useAppStore.getState().puzzleProgress;
     useLobbyFxStore.getState().setPuzzleHotspotHints({

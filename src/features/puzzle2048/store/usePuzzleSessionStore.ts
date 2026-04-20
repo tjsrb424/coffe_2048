@@ -37,6 +37,7 @@ export type PuzzleSessionState = {
   gameOver: boolean;
   inputLocked: boolean;
   lastMergeCount: number;
+  sessionMergeCount: number;
   lastScoreDelta: number;
   /** 이번 입력으로 “합체 결과”가 된 타일(id)과 펄스 강도 */
   lastMergePulseById: Record<string, number>;
@@ -51,6 +52,7 @@ export const usePuzzleSessionStore = create<PuzzleSessionState>((set, get) => ({
   gameOver: false,
   inputLocked: false,
   lastMergeCount: 0,
+  sessionMergeCount: 0,
   lastScoreDelta: 0,
   lastMergePulseById: {},
   startFresh: () => {
@@ -61,6 +63,7 @@ export const usePuzzleSessionStore = create<PuzzleSessionState>((set, get) => ({
       gameOver: false,
       inputLocked: false,
       lastMergeCount: 0,
+      sessionMergeCount: 0,
       lastScoreDelta: 0,
       lastMergePulseById: {},
     });
@@ -91,6 +94,7 @@ export const usePuzzleSessionStore = create<PuzzleSessionState>((set, get) => ({
       board: spawned,
       score: nextScore,
       lastMergeCount: moved.mergeCount,
+      sessionMergeCount: s.sessionMergeCount + moved.mergeCount,
       lastScoreDelta: moved.scoreDelta,
       lastMergePulseById,
       gameOver: over,
@@ -108,6 +112,11 @@ export const usePuzzleSessionStore = create<PuzzleSessionState>((set, get) => ({
 export function readPuzzleOutcomeFromState(state: PuzzleSessionState): {
   score: number;
   highestTile: number;
+  mergeCount: number;
 } {
-  return { score: state.score, highestTile: getHighestTileValue(state.board) };
+  return {
+    score: state.score,
+    highestTile: getHighestTileValue(state.board),
+    mergeCount: state.sessionMergeCount,
+  };
 }

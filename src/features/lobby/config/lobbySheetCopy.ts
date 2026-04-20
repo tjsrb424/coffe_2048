@@ -7,6 +7,7 @@ export const LOBBY_SHEET_TITLE_ID: Record<LobbySheetId, MessageId> = {
   showcase: "lobby.sheet.showcase.title",
   counter: "lobby.sheet.counter.title",
   puzzle: "lobby.sheet.puzzle.title",
+  shop: "lobby.sheet.shop.title",
 };
 
 /** 감성 한 줄(기능 제목과 구분) */
@@ -15,6 +16,7 @@ export const LOBBY_SHEET_TAGLINE_ID: Record<LobbySheetId, MessageId> = {
   showcase: "lobby.sheet.showcase.tagline",
   counter: "lobby.sheet.counter.tagline",
   puzzle: "lobby.sheet.puzzle.tagline",
+  shop: "lobby.sheet.shop.tagline",
 };
 
 export const LOBBY_SHEET_DESCRIPTION_ID: Partial<
@@ -24,6 +26,7 @@ export const LOBBY_SHEET_DESCRIPTION_ID: Partial<
   showcase: "lobby.sheet.showcase.description",
   counter: "lobby.sheet.counter.description",
   puzzle: "lobby.sheet.puzzle.description",
+  shop: "lobby.sheet.shop.description",
 };
 
 /** 시트 본문 위 짧은 서사 */
@@ -32,4 +35,5 @@ export const LOBBY_SHEET_BODY_INTRO_ID: Record<LobbySheetId, MessageId> = {
   showcase: "lobby.sheet.showcase.body",
   counter: "lobby.sheet.counter.body",
   puzzle: "lobby.sheet.puzzle.body",
+  shop: "lobby.sheet.shop.body",
 };

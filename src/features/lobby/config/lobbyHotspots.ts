@@ -7,7 +7,7 @@ export type LobbyHotspotId =
   | "counter"
   | "puzzle";
 
-export type LobbySheetId = "roast" | "showcase" | "counter" | "puzzle";
+export type LobbySheetId = "roast" | "showcase" | "counter" | "puzzle" | "shop";
 
 export type LobbyHotspotConfig = {
   id: LobbyHotspotId;

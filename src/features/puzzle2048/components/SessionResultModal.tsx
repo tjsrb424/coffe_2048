@@ -14,6 +14,7 @@ import type { PuzzleRewards } from "@/features/meta/rewards/computePuzzleRewards
 export type SessionResultPayload = {
   score: number;
   highestTile: number;
+  mergeCount: number;
   rewards: PuzzleRewards;
 };
 

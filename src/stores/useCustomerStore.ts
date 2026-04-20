@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { SAMPLE_CUSTOMERS } from "@/data/customers";
+import { beverageIdForRecipeId } from "@/features/meta/content/codex";
 import { t } from "@/locale/i18n";
 import { useAppStore } from "@/stores/useAppStore";
 import type { DrinkMenuId } from "@/features/meta/types/gameState";
@@ -16,6 +17,10 @@ import {
   clampStoryIndex,
   nextRuntimeStateOnAffectionGain,
 } from "@/features/customers/lib/affection";
+import {
+  resolvePreferenceHookForSale,
+  type CustomerPreferenceHookResult,
+} from "@/features/customers/lib/preferenceHooks";
 import { affectionGainFromCafeSales } from "@/features/customers/lib/saleAffection";
 
 type CustomerIndex = Record<CustomerId, CustomerProfile>;
@@ -83,6 +88,13 @@ export type RegularGiftPing = {
   tipCoins: number;
 };
 
+export type CustomerPreferenceHookPing = {
+  atMs: number;
+  customerId: CustomerId;
+  matchedTags: string[];
+  context: CustomerPreferenceHookResult;
+};
+
 type CustomerStore = CustomerSaveState & {
   /** 마지막 자동판매로 인한 애정 피드백(카운터 시트 1줄용) */
   lastCounterSalePing: CustomerCounterSalePing | null;
@@ -92,6 +104,8 @@ type CustomerStore = CustomerSaveState & {
   saleSession: SaleSessionState | null;
   /** 단골 손님이 남긴 작은 흔적(카운터 시트 1줄용) */
   lastRegularGiftPing: RegularGiftPing | null;
+  /** 새 성장/도감/시간대 시스템과 연결되는 최소 선호 훅(비저장) */
+  lastPreferenceHookPing: CustomerPreferenceHookPing | null;
   /** 흔적 스팸 방지용 전역 쿨다운(ms) */
   lastRegularGiftAtMs: number;
   /** 가게 애정도(정의: 개별 손님 애정도의 합산) */
@@ -334,6 +348,7 @@ export const useCustomerStore = create<CustomerStore>()(
       lastStoryUnlockPing: null,
       saleSession: null,
       lastRegularGiftPing: null,
+      lastPreferenceHookPing: null,
       lastRegularGiftAtMs: 0,
 
       shopAffection: () => {
@@ -500,6 +515,11 @@ export const useCustomerStore = create<CustomerStore>()(
         if (shouldGift && giftTipCoins > 0) {
           const prevCoins = useAppStore.getState().playerResources.coins;
           useAppStore.getState().patchPlayerResources({ coins: prevCoins + giftTipCoins });
+          useAppStore.getState().recordMissionEvent({
+            type: "coinsEarned",
+            amount: giftTipCoins,
+            source: "gift",
+          });
         }
 
         const featuredBatch = perBuyer[featured];
@@ -541,6 +561,7 @@ export const useCustomerStore = create<CustomerStore>()(
         let totalAff = 0;
         let totalPref = 0;
         let storyUnlockTitle: string | null = null;
+        let preferenceHook: CustomerPreferenceHookResult | null = null;
         set((s) => {
           let nextById = { ...s.byId };
           const featuredProfile = PROFILE_INDEX[featured];
@@ -553,6 +574,21 @@ export const useCustomerStore = create<CustomerStore>()(
             );
             totalAff = gainedAffection;
             totalPref = preferredBonus;
+            preferenceHook = resolvePreferenceHookForSale({
+              profile: featuredProfile,
+              soldByMenu: featuredBatch.soldByMenu,
+              firstSoldBeverageIds: Object.entries(featuredBatch.soldByMenu)
+                .map(([rawId, amount]) => {
+                  const beverageId = beverageIdForRecipeId(rawId as DrinkMenuId);
+                  const entry =
+                    useAppStore.getState().beverageCodex.entries[beverageId];
+                  return entry && entry.totalSold === (amount ?? 0)
+                    ? beverageId
+                    : null;
+                })
+                .filter((id): id is string => id != null),
+              nowMs: now,
+            });
             const next = nextRuntimeStateOnAffectionGain({
               profile: featuredProfile,
               prev,
@@ -580,6 +616,14 @@ export const useCustomerStore = create<CustomerStore>()(
             lastStoryUnlockPing: storyUnlockTitle
               ? { atMs: now, title: storyUnlockTitle }
               : s.lastStoryUnlockPing,
+            lastPreferenceHookPing: preferenceHook
+              ? {
+                  atMs: now,
+                  customerId: featured,
+                  matchedTags: preferenceHook.matchedTags,
+                  context: preferenceHook,
+                }
+              : s.lastPreferenceHookPing,
             lastRegularGiftPing:
               shouldGift && giftGiverName && giftNote
                 ? { atMs: now, giverName: giftGiverName, note: giftNote, tipCoins: giftTipCoins }
@@ -587,6 +631,14 @@ export const useCustomerStore = create<CustomerStore>()(
             lastRegularGiftAtMs: shouldGift ? now : s.lastRegularGiftAtMs,
           };
         });
+
+        if (storyUnlockTitle) {
+          useAppStore.getState().recordMissionEvent({
+            type: "collectionRegistered",
+            collectionKind: "story",
+            id: `${featured}:${storyUnlockTitle}`,
+          });
+        }
 
         return {
           gainedAffection: totalAff,
@@ -719,4 +771,3 @@ export const useCustomerStore = create<CustomerStore>()(
     },
   ),
 );
-

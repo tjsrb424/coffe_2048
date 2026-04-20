@@ -3,6 +3,12 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { usePuzzleSessionStore } from "@/features/puzzle2048/store/usePuzzleSessionStore";
 import { boardToTiles } from "@/features/puzzle2048/utils/boardToTiles";
+import {
+  puzzleBoardClassForSkin,
+  puzzleCellClassForSkin,
+} from "@/features/meta/cosmetics/puzzleSkins";
+import { cn } from "@/lib/utils";
+import { useAppStore } from "@/stores/useAppStore";
 import { PuzzleBoardMetricsContext } from "./PuzzleBoardMetricsContext";
 import { PuzzleTile } from "./PuzzleTile";
 
@@ -12,6 +18,9 @@ const PAD_PX = 8; // p-2
 
 export function PuzzleBoard() {
   const board = usePuzzleSessionStore((s) => s.board);
+  const backgroundSkinId = useAppStore(
+    (s) => s.cosmetics.equippedPuzzleBackgroundSkinId,
+  );
   const tiles = boardToTiles(board);
   const slotRef = useRef<HTMLDivElement>(null);
   const [side, setSide] = useState(300);
@@ -61,7 +70,10 @@ export function PuzzleBoard() {
               className="relative h-full w-full overflow-hidden rounded-[1.15rem] ring-1 ring-coffee-900/10 ring-inset sm:rounded-[1.35rem]"
             >
               <div
-                className="grid h-full w-full grid-cols-4 rounded-3xl bg-coffee-900/10 shadow-inner"
+                className={cn(
+                  "grid h-full w-full grid-cols-4 rounded-3xl shadow-inner",
+                  puzzleBoardClassForSkin(backgroundSkinId),
+                )}
                 style={{
                   gap: GAP_PX,
                   padding: PAD_PX,
@@ -72,7 +84,10 @@ export function PuzzleBoard() {
                 {Array.from({ length: 16 }).map((_, i) => (
                   <div
                     key={i}
-                    className="min-h-0 min-w-0 rounded-xl bg-cream-200/75 sm:rounded-2xl"
+                    className={cn(
+                      "min-h-0 min-w-0 rounded-xl sm:rounded-2xl",
+                      puzzleCellClassForSkin(backgroundSkinId),
+                    )}
                   />
                 ))}
               </div>
