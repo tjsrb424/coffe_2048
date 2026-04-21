@@ -6,9 +6,13 @@ import { Card } from "@/components/ui/Card";
 import { BeanIcon } from "@/components/ui/BeanIcon";
 import { CoinIcon } from "@/components/ui/CoinIcon";
 import { EspressoShotIcon } from "@/components/ui/EspressoShotIcon";
-import { DRINK_MENU_TEXT_IDS } from "@/data/drinkMenuTextIds";
-import { MENU_ORDER } from "@/features/meta/balance/cafeEconomy";
+import {
+  drinkMenuDescription,
+  drinkMenuName,
+} from "@/data/drinkMenuTextIds";
+import { STANDARD_MENU_ORDER } from "@/features/meta/balance/cafeEconomy";
 import { MATERIAL_ORDER, materialDefinition } from "@/features/meta/economy/materials";
+import { isOwnedRecipe } from "@/features/meta/economy/recipeOwnership";
 import { PRICING_DEFINITIONS } from "@/features/meta/economy/pricing";
 import { recipeDefinition } from "@/features/meta/economy/recipes";
 import {
@@ -33,6 +37,7 @@ export function CafeShopSection() {
   const coins = useAppStore((s) => s.playerResources.coins);
   const materialInventory = useAppStore((s) => s.cafeState.materialInventory);
   const rawAccount = useAppStore((s) => s.accountLevel);
+  const codex = useAppStore((s) => s.beverageCodex);
   const purchaseMaterial = useAppStore((s) => s.purchaseMaterial);
   const purchaseRecipe = useAppStore((s) => s.purchaseRecipe);
   const { lightTap } = useGameFeedback();
@@ -119,13 +124,13 @@ export function CafeShopSection() {
         </ul>
       ) : (
         <ul className="grid grid-cols-1 gap-3">
-          {MENU_ORDER.map((id) => (
+          {STANDARD_MENU_ORDER.map((id) => (
             <RecipeShopCard
               key={id}
               id={id}
               unlocked={account.unlockedRecipeIds.includes(id)}
-              purchased={account.purchasedRecipeIds.includes(id)}
-              canBuy={canPurchaseRecipe(account, id, coins)}
+              purchased={isOwnedRecipe({ id, account, codex })}
+              canBuy={canPurchaseRecipe(account, id, coins, codex)}
               onBuy={() => {
                 lightTap();
                 purchaseRecipe(id);
@@ -198,7 +203,7 @@ function RecipeShopCard({
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-sm font-bold text-coffee-900">
-                {t(DRINK_MENU_TEXT_IDS[id].nameTextId)}
+                {drinkMenuName(id, t)}
               </h3>
               <span
                 className={cn(
@@ -214,7 +219,7 @@ function RecipeShopCard({
               </span>
             </div>
             <p className="mt-1 text-xs leading-relaxed text-coffee-700/78">
-              {t(DRINK_MENU_TEXT_IDS[id].descriptionTextId)}
+              {drinkMenuDescription(id, t)}
             </p>
             <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-semibold tabular-nums text-coffee-800">
               <span className="inline-flex items-center gap-1 rounded-full bg-cream-200/60 px-2 py-0.5 ring-1 ring-coffee-600/7">

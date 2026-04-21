@@ -11,6 +11,14 @@ const BASE_SELL_PRICE: Record<DrinkMenuId, number> = {
   americano: 10,
   latte: 18,
   affogato: 28,
+  morning_mist_latte: 34,
+  dawn_honey_shot: 38,
+  noon_citrus_coffee: 40,
+  traveler_blend: 44,
+  evening_caramel_crema: 46,
+  sunset_tea_latte: 48,
+  night_velvet_mocha: 52,
+  midnight_tonic: 50,
 };
 
 function recipeMaterialCost(recipe: RecipeDefinition): number {
@@ -26,11 +34,13 @@ function profitRatingFor(sellPrice: number, materialCost: number): PricingDefini
   return "steady";
 }
 
-export const PRICING_DEFINITIONS: Record<DrinkMenuId, PricingDefinition> = {
-  americano: createPricing("americano"),
-  latte: createPricing("latte"),
-  affogato: createPricing("affogato"),
-};
+export const PRICING_DEFINITIONS: Record<DrinkMenuId, PricingDefinition> =
+  Object.fromEntries(
+    (Object.keys(RECIPE_DEFINITIONS) as DrinkMenuId[]).map((id) => [
+      id,
+      createPricing(id),
+    ]),
+  ) as Record<DrinkMenuId, PricingDefinition>;
 
 function createPricing(id: DrinkMenuId): PricingDefinition {
   const materialCost = recipeMaterialCost(RECIPE_DEFINITIONS[id]);

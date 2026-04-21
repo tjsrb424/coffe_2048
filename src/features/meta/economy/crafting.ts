@@ -1,10 +1,12 @@
 import type {
   AccountLevelState,
+  BeverageCodexState,
   CafeState,
   DrinkMenuId,
   MaterialId,
 } from "@/features/meta/types/gameState";
 import { materialDefinition } from "./materials";
+import { isOwnedRecipe, isUnlockedRecipe } from "./recipeOwnership";
 import { recipeDefinition } from "./recipes";
 
 export type MissingMaterial = {
@@ -28,6 +30,7 @@ export type CraftValidation = {
 export function validateCraftDrink(input: {
   id: DrinkMenuId;
   account: AccountLevelState;
+  beverageCodex?: BeverageCodexState;
   cafeState: CafeState;
   beans: number;
 }): CraftValidation {
@@ -44,8 +47,16 @@ export function validateCraftDrink(input: {
       };
     })
     .filter((item) => item.have < item.need);
-  const recipeUnlocked = input.account.unlockedRecipeIds.includes(input.id);
-  const recipePurchased = input.account.purchasedRecipeIds.includes(input.id);
+  const recipeUnlocked = isUnlockedRecipe({
+    id: input.id,
+    account: input.account,
+    codex: input.beverageCodex,
+  });
+  const recipePurchased = isOwnedRecipe({
+    id: input.id,
+    account: input.account,
+    codex: input.beverageCodex,
+  });
   const shotsOk = input.cafeState.espressoShots >= recipe.shots;
   const beansOk = input.beans >= recipe.beans;
   const materialsOk = missingMaterials.length === 0;

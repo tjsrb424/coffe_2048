@@ -3,8 +3,11 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { EspressoShotIcon } from "@/components/ui/EspressoShotIcon";
-import { DRINK_MENU_TEXT_IDS } from "@/data/drinkMenuTextIds";
-import { MENU_ORDER } from "@/features/meta/balance/cafeEconomy";
+import { drinkMenuName } from "@/data/drinkMenuTextIds";
+import {
+  MENU_ORDER,
+  totalMenuStock,
+} from "@/features/meta/balance/cafeEconomy";
 import { getCafeRuntimeModifiers } from "@/features/meta/balance/cafeModifiers";
 import { t } from "@/locale/i18n";
 import { useAppStore } from "@/stores/useAppStore";
@@ -16,11 +19,11 @@ export function CafeStatusCard() {
   const stock = useAppStore((s) => s.cafeState.menuStock);
   const sellingActive = useAppStore((s) => s.cafeState.displaySellingActive);
   const m = getCafeRuntimeModifiers(cafe);
-  const total = stock.americano + stock.latte + stock.affogato;
+  const total = totalMenuStock(stock);
   const hasAny = total > 0;
 
   const menuNames = MENU_ORDER.filter((id) => stock[id] > 0).map((id) =>
-    t(DRINK_MENU_TEXT_IDS[id].nameTextId),
+    drinkMenuName(id, t),
   );
 
   return (

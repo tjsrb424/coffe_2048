@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { SAMPLE_CUSTOMERS } from "@/data/customers";
+import { MENU_ORDER } from "@/features/meta/balance/cafeEconomy";
 import { beverageIdForRecipeId } from "@/features/meta/content/codex";
 import { t } from "@/locale/i18n";
 import { useAppStore } from "@/stores/useAppStore";
@@ -32,6 +33,9 @@ const CORE_CUSTOMER_IDS = new Set<CustomerId>([
   "so_yeon",
   "dong_hyun",
 ]);
+
+export const CUSTOMER_STORAGE_KEY = "coffee2048_customers_v1" as const;
+export const CUSTOMER_STORAGE_VERSION = 6 as const;
 
 type SaleSessionState = {
   /** 세션 시작 시각(ms) — 큐 생성 시드 */
@@ -139,6 +143,12 @@ type CustomerStore = CustomerSaveState & {
   setFeaturedCustomer: (id: CustomerId) => void;
   /** 캘린더 일 기준으로 오늘의 손님 1명을 고름(최소 로테이션). */
   ensureFeaturedForToday: (nowMs?: number) => void;
+  /** 개발자 디버그: 손님 저장 데이터만 덤프 */
+  exportCustomerSave: () => CustomerSaveState;
+  /** 개발자 디버그: 손님 저장 데이터만 로드 */
+  importCustomerSave: (data: unknown) => boolean;
+  /** 개발자 디버그: 손님 저장 데이터만 초기화 */
+  resetCustomerSave: () => void;
 };
 
 const PROFILE_INDEX: CustomerIndex = Object.fromEntries(
@@ -209,6 +219,97 @@ function ensureStateFor(
   return byId[id] ?? defaultRuntimeState(PROFILE_INDEX[id] ?? SAMPLE_CUSTOMERS[0]);
 }
 
+function createDefaultCustomerSaveState(): CustomerSaveState {
+  return {
+    byId: Object.fromEntries(
+      SAMPLE_CUSTOMERS.map((c) => [c.id, defaultRuntimeState(c)]),
+    ) as Record<CustomerId, CustomerRuntimeState>,
+    featuredCustomerId: SAMPLE_CUSTOMERS[0].id,
+    featuredDailyQuotaTotal: 1,
+    featuredDailyQuotaUsed: 0,
+    featuredQuotaDayKey: 0,
+    lastFeaturedDayKey: 0,
+  };
+}
+
+function normalizeDayKey(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(0, Math.floor(value))
+    : 0;
+}
+
+function normalizeCustomerSaveState(input: unknown): CustomerSaveState {
+  const defaults = createDefaultCustomerSaveState();
+  if (!input || typeof input !== "object") {
+    return defaults;
+  }
+
+  const raw = input as Partial<CustomerSaveState> & Record<string, unknown>;
+  const byIdInput =
+    raw.byId && typeof raw.byId === "object"
+      ? (raw.byId as Record<string, Partial<CustomerRuntimeState>>)
+      : {};
+
+  const byId = Object.fromEntries(
+    SAMPLE_CUSTOMERS.map((profile) => {
+      const prev = byIdInput[profile.id];
+      const affection =
+        typeof prev?.affection === "number" && Number.isFinite(prev.affection)
+          ? Math.max(0, Math.floor(prev.affection))
+          : profile.baseAffection;
+      const storyIndex = Math.max(
+        typeof prev?.storyIndex === "number" && Number.isFinite(prev.storyIndex)
+          ? Math.max(0, Math.floor(prev.storyIndex))
+          : 0,
+        clampStoryIndex(profile, affection),
+      );
+      return [
+        profile.id,
+        {
+          affection,
+          isRegular: typeof prev?.isRegular === "boolean" ? prev.isRegular : false,
+          storyIndex,
+          lastAffectionAtMs:
+            typeof prev?.lastAffectionAtMs === "number" &&
+            Number.isFinite(prev.lastAffectionAtMs)
+              ? Math.max(0, Math.floor(prev.lastAffectionAtMs))
+              : 0,
+        },
+      ];
+    }),
+  ) as Record<CustomerId, CustomerRuntimeState>;
+
+  const featuredCustomerId = SAMPLE_CUSTOMERS.some(
+    (customer) => customer.id === raw.featuredCustomerId,
+  )
+    ? (raw.featuredCustomerId as CustomerId)
+    : defaults.featuredCustomerId;
+
+  const featuredDailyQuotaTotal =
+    typeof raw.featuredDailyQuotaTotal === "number" &&
+    Number.isFinite(raw.featuredDailyQuotaTotal)
+      ? Math.min(2, Math.max(1, Math.floor(raw.featuredDailyQuotaTotal)))
+      : defaults.featuredDailyQuotaTotal;
+
+  const featuredDailyQuotaUsed =
+    typeof raw.featuredDailyQuotaUsed === "number" &&
+    Number.isFinite(raw.featuredDailyQuotaUsed)
+      ? Math.min(
+          featuredDailyQuotaTotal,
+          Math.max(0, Math.floor(raw.featuredDailyQuotaUsed)),
+        )
+      : defaults.featuredDailyQuotaUsed;
+
+  return {
+    byId,
+    featuredCustomerId,
+    featuredDailyQuotaTotal,
+    featuredDailyQuotaUsed,
+    featuredQuotaDayKey: normalizeDayKey(raw.featuredQuotaDayKey),
+    lastFeaturedDayKey: normalizeDayKey(raw.lastFeaturedDayKey),
+  };
+}
+
 function calendarDayKeyUtc(nowMs: number): number {
   return Math.floor(nowMs / 86_400_000);
 }
@@ -233,9 +334,8 @@ function expandSoldMenus(
   soldByMenu?: Partial<Record<DrinkMenuId, number>>,
 ): DrinkMenuId[] {
   if (!soldByMenu) return new Array(soldCount).fill("americano");
-  const order: DrinkMenuId[] = ["americano", "latte", "affogato"];
   const out: DrinkMenuId[] = [];
-  for (const mid of order) {
+  for (const mid of MENU_ORDER) {
     const n = soldByMenu[mid] ?? 0;
     for (let i = 0; i < n; i += 1) out.push(mid);
   }
@@ -336,14 +436,7 @@ function featuredDailyQuotaForDay(dayKey: number): number {
 export const useCustomerStore = create<CustomerStore>()(
   persist(
     (set, get) => ({
-      byId: Object.fromEntries(
-        SAMPLE_CUSTOMERS.map((c) => [c.id, defaultRuntimeState(c)]),
-      ),
-      featuredCustomerId: SAMPLE_CUSTOMERS[0].id,
-      featuredDailyQuotaTotal: 1,
-      featuredDailyQuotaUsed: 0,
-      featuredQuotaDayKey: 0,
-      lastFeaturedDayKey: 0,
+      ...createDefaultCustomerSaveState(),
       lastCounterSalePing: null,
       lastStoryUnlockPing: null,
       saleSession: null,
@@ -666,11 +759,47 @@ export const useCustomerStore = create<CustomerStore>()(
         if (s.lastFeaturedDayKey === dayKey) return;
         set({ featuredCustomerId: fallbackId, lastFeaturedDayKey: dayKey });
       },
+      exportCustomerSave: () => {
+        const s = get();
+        return {
+          byId: s.byId,
+          featuredCustomerId: s.featuredCustomerId,
+          featuredDailyQuotaTotal: s.featuredDailyQuotaTotal,
+          featuredDailyQuotaUsed: s.featuredDailyQuotaUsed,
+          featuredQuotaDayKey: s.featuredQuotaDayKey,
+          lastFeaturedDayKey: s.lastFeaturedDayKey,
+        };
+      },
+      importCustomerSave: (data) => {
+        if (!data || typeof data !== "object") return false;
+        const next = normalizeCustomerSaveState(data);
+        set({
+          ...next,
+          lastCounterSalePing: null,
+          lastStoryUnlockPing: null,
+          saleSession: null,
+          lastRegularGiftPing: null,
+          lastPreferenceHookPing: null,
+          lastRegularGiftAtMs: 0,
+        });
+        return true;
+      },
+      resetCustomerSave: () => {
+        set({
+          ...createDefaultCustomerSaveState(),
+          lastCounterSalePing: null,
+          lastStoryUnlockPing: null,
+          saleSession: null,
+          lastRegularGiftPing: null,
+          lastPreferenceHookPing: null,
+          lastRegularGiftAtMs: 0,
+        });
+      },
     }),
     {
-      name: "coffee2048_customers_v1",
+      name: CUSTOMER_STORAGE_KEY,
       storage: createJSONStorage(() => localStorage),
-      version: 6,
+      version: CUSTOMER_STORAGE_VERSION,
       migrate: (persistedState, version) => {
         let state = persistedState as CustomerSaveState & Record<string, unknown>;
         if (version < 2) {
@@ -758,7 +887,7 @@ export const useCustomerStore = create<CustomerStore>()(
             byId: nextById,
           } as CustomerSaveState & Record<string, unknown>;
         }
-        return state as CustomerSaveState;
+        return normalizeCustomerSaveState(state);
       },
       partialize: (s) => ({
         byId: s.byId,

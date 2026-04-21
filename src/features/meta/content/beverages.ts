@@ -236,6 +236,7 @@ export const BEVERAGE_DEFINITIONS: BeverageDefinition[] = BEVERAGE_CATEGORY_ORDE
   ...seed,
   categoryId: categoryIdForSeed(seed.id),
   unlockLevel: LEVEL_SEQUENCE[index] ?? 100,
+  recipeId: seed.timeLimited ? (seed.id as DrinkMenuId) : seed.recipeId,
   guestReactionSlot: `guest-reaction:${seed.id}`,
 }));
 
@@ -248,6 +249,14 @@ export const BEVERAGE_ID_BY_RECIPE_ID: Record<DrinkMenuId, BeverageId> = {
   americano: "americano",
   latte: "latte",
   affogato: "affogato",
+  morning_mist_latte: "morning_mist_latte",
+  dawn_honey_shot: "dawn_honey_shot",
+  noon_citrus_coffee: "noon_citrus_coffee",
+  traveler_blend: "traveler_blend",
+  evening_caramel_crema: "evening_caramel_crema",
+  sunset_tea_latte: "sunset_tea_latte",
+  night_velvet_mocha: "night_velvet_mocha",
+  midnight_tonic: "midnight_tonic",
 };
 
 function categoryIdForSeed(id: BeverageId): BeverageCategoryId {

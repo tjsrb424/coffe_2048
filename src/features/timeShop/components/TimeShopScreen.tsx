@@ -12,6 +12,7 @@ import {
   currentTimeOfDay,
   timeShopEntriesFor,
 } from "@/features/meta/content/timeShop";
+import { isOwnedBeverageRecipe } from "@/features/meta/economy/recipeOwnership";
 import { normalizeAccountLevelState } from "@/features/meta/progression/missionEngine";
 import type { TimeOfDayId } from "@/features/meta/types/gameState";
 import { useResetDocumentScrollOnMount } from "@/hooks/useResetDocumentScrollOnMount";
@@ -91,12 +92,16 @@ export function TimeShopScreen() {
         {entries.map((entry) => {
           const beverage = beverageDefinition(entry.beverageId);
           if (!beverage) return null;
-          const purchased = codex.purchasedTimeRecipeIds.includes(beverage.id);
+          const purchased = isOwnedBeverageRecipe({
+            beverageId: beverage.id,
+            account,
+            codex,
+          });
           const levelOk = account.level >= entry.requiredLevel;
           const coinOk = coins >= entry.price;
           const canBuy = !purchased && levelOk && coinOk;
           const blockLine = purchased
-            ? "이미 도감에 담긴 한정 레시피예요."
+            ? "이미 보유 중이며 작업대에서 바로 제작할 수 있어요."
             : !levelOk
               ? `Lv.${entry.requiredLevel}부터 구매할 수 있어요.`
               : !coinOk
@@ -154,9 +159,9 @@ export function TimeShopScreen() {
 
       <Card className="mt-4 bg-cream-200/55 p-4">
         <p className="text-xs leading-relaxed text-coffee-700/80">
-          구매한 시간대 레시피는 도감의 구매 완료 상태로 남고, 시간대 레시피
-          구매 미션에도 바로 연결됩니다. 실제 제작 레시피는 다음 단계에서
-          재료식과 함께 붙이면 됩니다.
+          구매한 시간대 레시피는 일반 레시피처럼 작업대 제작, 진열 판매,
+          도감의 제작/판매 단계, 시간대 구매 미션과 새로고침 저장까지 모두
+          같은 루프로 이어집니다.
         </p>
       </Card>
 

@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { LobbyReturnButton } from "@/components/navigation/LobbyReturnButton";
 import { Card } from "@/components/ui/Card";
-import { DRINK_MENU_TEXT_IDS } from "@/data/drinkMenuTextIds";
+import { drinkMenuName } from "@/data/drinkMenuTextIds";
 import {
   CAFE_ECONOMY,
-  MENU_ORDER,
+  visibleMenuOrder,
 } from "@/features/meta/balance/cafeEconomy";
 import { getCafeRuntimeModifiers } from "@/features/meta/balance/cafeModifiers";
 import { useResetDocumentScrollOnMount } from "@/hooks/useResetDocumentScrollOnMount";
@@ -18,8 +19,13 @@ import { useAppStore } from "@/stores/useAppStore";
 export function ShowcaseMenuScreen() {
   useResetDocumentScrollOnMount();
   const cafe = useAppStore((s) => s.cafeState);
+  const beverageCodex = useAppStore((s) => s.beverageCodex);
   const menuStock = useAppStore((s) => s.cafeState.menuStock);
   const m = getCafeRuntimeModifiers(cafe);
+  const visibleMenuIds = useMemo(
+    () => visibleMenuOrder(beverageCodex),
+    [beverageCodex],
+  );
 
   return (
     <>
@@ -45,13 +51,13 @@ export function ShowcaseMenuScreen() {
             {t("menu.page.stockHeading")}
           </div>
           <ul className="mt-4 space-y-3">
-            {MENU_ORDER.map((id) => (
+            {visibleMenuIds.map((id) => (
               <li
                 key={id}
                 className="flex items-center justify-between rounded-2xl bg-cream-200/60 px-3 py-3 ring-1 ring-coffee-600/5"
               >
                 <span className="text-sm font-semibold text-coffee-900">
-                  {t(DRINK_MENU_TEXT_IDS[id].nameTextId)}
+                  {drinkMenuName(id, t)}
                 </span>
                 <span className="tabular-nums text-sm text-coffee-700">
                   {t("menu.stock.line", {

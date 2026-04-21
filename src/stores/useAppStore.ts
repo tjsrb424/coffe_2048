@@ -5,6 +5,8 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import {
   CAFE_ECONOMY,
   defaultMenuStock,
+  normalizeMenuStock,
+  totalMenuStock,
   trySellOneRoundRobin,
 } from "@/features/meta/balance/cafeEconomy";
 import {
@@ -27,6 +29,10 @@ import {
   puzzleSkinDefinition,
 } from "@/features/meta/cosmetics/puzzleSkins";
 import { validateCraftDrink } from "@/features/meta/economy/crafting";
+import {
+  isOwnedBeverageRecipe,
+  isOwnedRecipe,
+} from "@/features/meta/economy/recipeOwnership";
 import {
   defaultMaterialInventory,
   materialDefinition,
@@ -248,6 +254,11 @@ function mergePersisted(persisted: unknown, current: AppStore): AppStore {
     },
     cafeState: (() => {
       const merged = { ...defaultCafe, ...current.cafeState, ...p.cafeState };
+      merged.menuStock = normalizeMenuStock(
+        p.cafeState?.menuStock ??
+          current.cafeState.menuStock ??
+          defaultCafe.menuStock,
+      );
       merged.materialInventory = normalizeMaterialInventory(
         p.cafeState?.materialInventory ??
           current.cafeState.materialInventory ??
@@ -357,6 +368,7 @@ function migratePersistedState(persisted: unknown): unknown {
     ...state,
     cafeState: {
       ...state.cafeState,
+      menuStock: normalizeMenuStock(state.cafeState?.menuStock),
       materialInventory: normalizeMaterialInventory(
         state.cafeState?.materialInventory,
       ),
@@ -471,6 +483,7 @@ export const useAppStore = create<AppStore>()(
         const validation = validateCraftDrink({
           id,
           account,
+          beverageCodex: prev.beverageCodex,
           cafeState: cafe,
           beans: prev.playerResources.beans,
         });
@@ -543,9 +556,10 @@ export const useAppStore = create<AppStore>()(
         const prev = get();
         const account = normalizeAccountLevelState(prev.accountLevel);
         if (!account.unlockedRecipeIds.includes(id)) return false;
-        if (account.purchasedRecipeIds.includes(id)) return true;
+        if (isOwnedRecipe({ id, account, codex: prev.beverageCodex })) return true;
         const cost = recipePurchaseCost(id);
-        if (!canPurchaseRecipe(account, id, prev.playerResources.coins)) return false;
+        if (!canPurchaseRecipe(account, id, prev.playerResources.coins, prev.beverageCodex))
+          return false;
         set({
           playerResources: {
             ...prev.playerResources,
@@ -574,7 +588,15 @@ export const useAppStore = create<AppStore>()(
         const entry = activeTimeShopEntry(id, timeOfDay);
         if (!entry) return false;
         if (account.level < entry.requiredLevel) return false;
-        if (prev.beverageCodex.purchasedTimeRecipeIds.includes(id)) return true;
+        if (
+          isOwnedBeverageRecipe({
+            beverageId: id,
+            account,
+            codex: prev.beverageCodex,
+          })
+        ) {
+          return true;
+        }
         if (prev.playerResources.coins < entry.price) return false;
         set({
           playerResources: {
@@ -651,10 +673,7 @@ export const useAppStore = create<AppStore>()(
           };
         }
 
-        const totalStart =
-          cafe.menuStock.americano +
-          cafe.menuStock.latte +
-          cafe.menuStock.affogato;
+        const totalStart = totalMenuStock(cafe.menuStock);
         if (totalStart <= 0) {
           set({
             cafeState: { ...cafe, displaySellingActive: false },
@@ -703,8 +722,7 @@ export const useAppStore = create<AppStore>()(
           soldByMenu[sold.id] = (soldByMenu[sold.id] ?? 0) + 1;
         }
 
-        const remaining =
-          menuStock.americano + menuStock.latte + menuStock.affogato;
+        const remaining = totalMenuStock(menuStock);
         let beverageCodex = prev.beverageCodex;
         for (const [rawId, amount] of Object.entries(soldByMenu)) {
           beverageCodex = markCodexSold(
@@ -744,10 +762,7 @@ export const useAppStore = create<AppStore>()(
       startDisplaySelling: () => {
         const prev = get();
         const cafe = prev.cafeState;
-        const total =
-          cafe.menuStock.americano +
-          cafe.menuStock.latte +
-          cafe.menuStock.affogato;
+        const total = totalMenuStock(cafe.menuStock);
         if (total <= 0) return false;
         if (cafe.displaySellingActive) return true;
         set({
@@ -821,6 +836,9 @@ export const useAppStore = create<AppStore>()(
           const next: CafeState = {
             ...s.cafeState,
             ...patch,
+            menuStock: normalizeMenuStock(
+              patch.menuStock ?? s.cafeState.menuStock,
+            ),
           };
           next.cafeLevel = recomputeCafeLevel(next);
           return { cafeState: next };

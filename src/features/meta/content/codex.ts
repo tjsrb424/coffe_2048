@@ -7,6 +7,7 @@ import type {
   CodexEntryStage,
   DrinkMenuId,
 } from "@/features/meta/types/gameState";
+import { isOwnedBeverageRecipe } from "@/features/meta/economy/recipeOwnership";
 import {
   BEVERAGE_DEFINITIONS,
   BEVERAGE_ID_BY_RECIPE_ID,
@@ -131,8 +132,11 @@ export function codexStageFor(input: {
   if (entry?.firstCraftedAtMs) return "crafted";
   if (
     entry?.purchasedAtMs ||
-    codex.purchasedTimeRecipeIds.includes(beverage.id) ||
-    (beverage.recipeId && account.purchasedRecipeIds.includes(beverage.recipeId))
+    isOwnedBeverageRecipe({
+      beverageId: beverage.id,
+      account,
+      codex,
+    })
   ) {
     return "purchased";
   }

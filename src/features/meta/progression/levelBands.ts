@@ -4,6 +4,8 @@ import type {
   LevelBand,
   LevelUnlock,
 } from "@/features/meta/types/gameState";
+import type { BeverageCodexState } from "@/features/meta/types/gameState";
+import { isOwnedRecipe } from "@/features/meta/economy/recipeOwnership";
 import { recipePurchaseCost as economyRecipePurchaseCost } from "@/features/meta/economy/recipes";
 
 export const MAX_ACCOUNT_LEVEL = 100;
@@ -116,10 +118,11 @@ export function canPurchaseRecipe(
   account: AccountLevelState,
   id: DrinkMenuId,
   coins: number,
+  codex?: BeverageCodexState,
 ): boolean {
   return (
     account.unlockedRecipeIds.includes(id) &&
-    !account.purchasedRecipeIds.includes(id) &&
+    !isOwnedRecipe({ id, account, codex }) &&
     coins >= recipePurchaseCost(id)
   );
 }

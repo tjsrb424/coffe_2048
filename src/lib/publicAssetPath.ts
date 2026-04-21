@@ -1,5 +1,12 @@
 const assetVersion = process.env.NEXT_PUBLIC_ASSET_VERSION?.trim();
 
+function encodePathSegments(pathname: string): string {
+  return pathname
+    .split("/")
+    .map((segment) => (segment ? encodeURIComponent(segment) : segment))
+    .join("/");
+}
+
 function appendAssetVersion(href: string): string {
   if (!assetVersion) return href;
 
@@ -17,5 +24,5 @@ function appendAssetVersion(href: string): string {
 export function publicAssetPath(path: string): string {
   const base = (process.env.NEXT_PUBLIC_BASE_PATH ?? "").replace(/\/$/, "");
   const p = path.startsWith("/") ? path : `/${path}`;
-  return appendAssetVersion(`${base}${p}`);
+  return appendAssetVersion(`${base}${encodePathSegments(p)}`);
 }

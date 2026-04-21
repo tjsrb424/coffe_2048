@@ -22,6 +22,7 @@ import {
   LOBBY_SHEET_TITLE_ID,
 } from "@/features/lobby/config/lobbySheetCopy";
 import { buildLobbySheetSummary } from "@/features/lobby/lib/lobbySheetSummary";
+import { totalMenuStock } from "@/features/meta/balance/cafeEconomy";
 import { publicAssetPath } from "@/lib/publicAssetPath";
 import { runSceneTransition } from "@/lib/runSceneTransition";
 import { playCounterOpen, playRoasterOpen, playWorkbenchOpen } from "@/lib/sfx";
@@ -102,10 +103,7 @@ export function LobbyScreen() {
   }, [open, playerResources, puzzleProgress, cafeState]);
 
   const menuTotalStock = useMemo(
-    () =>
-      cafeState.menuStock.americano +
-      cafeState.menuStock.latte +
-      cafeState.menuStock.affogato,
+    () => totalMenuStock(cafeState.menuStock),
     [cafeState.menuStock],
   );
 

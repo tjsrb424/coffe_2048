@@ -9,12 +9,18 @@ import {
 import { MAX_ACCOUNT_LEVEL, missionSlotCountForLevel } from "./levelBands";
 
 const DRINK_ORDER: DrinkMenuId[] = ["americano", "latte", "affogato"];
-const TIME_ORDER: TimeOfDayId[] = ["morning", "day", "evening", "night"];
-const TIME_RECIPE_ORDER: BeverageId[] = [
-  "morning_mist_latte",
-  "noon_citrus_coffee",
-  "evening_caramel_crema",
-  "night_velvet_mocha",
+const TIME_RECIPE_ORDER: Array<{
+  beverageId: BeverageId;
+  timeOfDay: TimeOfDayId;
+}> = [
+  { beverageId: "morning_mist_latte", timeOfDay: "morning" },
+  { beverageId: "dawn_honey_shot", timeOfDay: "morning" },
+  { beverageId: "noon_citrus_coffee", timeOfDay: "day" },
+  { beverageId: "traveler_blend", timeOfDay: "day" },
+  { beverageId: "evening_caramel_crema", timeOfDay: "evening" },
+  { beverageId: "sunset_tea_latte", timeOfDay: "evening" },
+  { beverageId: "night_velvet_mocha", timeOfDay: "night" },
+  { beverageId: "midnight_tonic", timeOfDay: "night" },
 ];
 
 function drinkLabel(id: DrinkMenuId): string {
@@ -59,9 +65,10 @@ function targetFor(type: MissionType, level: number): number {
 
 function definitionFor(level: number, slotIndex: number): MissionDefinition {
   const drinkId = DRINK_ORDER[(level + slotIndex) % DRINK_ORDER.length]!;
-  const timeOfDay = TIME_ORDER[Math.floor(level / 10) % TIME_ORDER.length]!;
-  const timeRecipeId =
+  const timeRecipe =
     TIME_RECIPE_ORDER[Math.floor(level / 10) % TIME_RECIPE_ORDER.length]!;
+  const timeOfDay = timeRecipe.timeOfDay;
+  const timeRecipeId = timeRecipe.beverageId;
 
   if (level === 2 && slotIndex === 0) {
     return {
@@ -184,9 +191,7 @@ function definitionFor(level: number, slotIndex: number): MissionDefinition {
     target: targetFor(type, level),
     params: {
       drinkId:
-        type === MissionType.SpecificDrinkSold || type === MissionType.TimeDrinkSold
-          ? drinkId
-          : undefined,
+        type === MissionType.SpecificDrinkSold ? drinkId : undefined,
       beverageId:
         type === MissionType.TimeRecipePurchased ? timeRecipeId : undefined,
       timeOfDay:

@@ -8,11 +8,15 @@ import { Card } from "@/components/ui/Card";
 import { BeanIcon } from "@/components/ui/BeanIcon";
 import { CoinIcon } from "@/components/ui/CoinIcon";
 import { EspressoShotIcon } from "@/components/ui/EspressoShotIcon";
-import { DRINK_MENU_TEXT_IDS } from "@/data/drinkMenuTextIds";
+import {
+  drinkMenuDescription,
+  drinkMenuName,
+} from "@/data/drinkMenuTextIds";
 import { getCafeRuntimeModifiers } from "@/features/meta/balance/cafeModifiers";
 import {
   CAFE_ECONOMY,
-  MENU_ORDER,
+  totalMenuStock,
+  visibleMenuOrder,
 } from "@/features/meta/balance/cafeEconomy";
 import {
   missingMaterialsLine,
@@ -43,6 +47,7 @@ export function CafeLoopSection({
 }) {
   const beans = useAppStore((s) => s.playerResources.beans);
   const accountLevel = useAppStore((s) => s.accountLevel);
+  const beverageCodex = useAppStore((s) => s.beverageCodex);
   const cafe = useAppStore((s) => s.cafeState);
   const shots = useAppStore((s) => s.cafeState.espressoShots);
   const menuStock = useAppStore((s) => s.cafeState.menuStock);
@@ -64,10 +69,10 @@ export function CafeLoopSection({
 
   const m = getCafeRuntimeModifiers(cafe);
   const canRoast = beans >= m.roastBeanCost && shots < m.maxShots;
-  const totalStock =
-    menuStock.americano + menuStock.latte + menuStock.affogato;
+  const totalStock = totalMenuStock(menuStock);
   const reduceMotion = !!useReducedMotion();
   const account = normalizeAccountLevelState(accountLevel);
+  const visibleMenuIds = visibleMenuOrder(beverageCodex);
 
   const roastBlockReason =
     shots >= m.maxShots
@@ -215,7 +220,7 @@ export function CafeLoopSection({
           </div>
         </div>
         <ul className="mt-4 grid grid-cols-1 gap-3">
-          {MENU_ORDER.map((id) => (
+          {visibleMenuIds.map((id) => (
             <MenuCraftCard
               key={id}
               id={id}
@@ -223,6 +228,7 @@ export function CafeLoopSection({
               validation={validateCraftDrink({
                 id,
                 account,
+                beverageCodex,
                 cafeState: cafe,
                 beans,
               })}
@@ -309,7 +315,7 @@ export function CafeLoopSection({
           </p>
         ) : null}
         <div className="mt-4 grid grid-cols-3 gap-2.5 text-center">
-          {MENU_ORDER.map((id) => (
+          {visibleMenuIds.map((id) => (
             <div
               key={id}
               className={cn(
@@ -320,20 +326,31 @@ export function CafeLoopSection({
               )}
             >
               <div className="text-[11px] font-semibold text-coffee-700/80">
-                {t(DRINK_MENU_TEXT_IDS[id].nameTextId)}
+                {drinkMenuName(id, t)}
               </div>
               <div className="mt-2 flex justify-center" aria-hidden>
-                <Image
-                  src={drinkImagePath(id)}
-                  alt=""
-                  width={192}
-                  height={192}
-                  className={cn(
-                    "h-20 w-20 object-contain drop-shadow-[0_10px_18px_rgb(90_61_43_/_0.18)]",
-                    menuStock[id] === 0 && "opacity-50 saturate-[0.8]",
-                  )}
-                  priority={false}
-                />
+                {isIllustratedMenu(id) ? (
+                  <Image
+                    src={drinkImagePath(id)}
+                    alt=""
+                    width={192}
+                    height={192}
+                    className={cn(
+                      "h-20 w-20 object-contain drop-shadow-[0_10px_18px_rgb(90_61_43_/_0.18)]",
+                      menuStock[id] === 0 && "opacity-50 saturate-[0.8]",
+                    )}
+                    priority={false}
+                  />
+                ) : (
+                  <div
+                    className={cn(
+                      "grid h-20 w-20 place-items-center rounded-full bg-cream-100 text-2xl ring-1 ring-coffee-600/10",
+                      menuStock[id] === 0 && "opacity-55",
+                    )}
+                  >
+                    {menuEmoji(id)}
+                  </div>
+                )}
               </div>
               <div className="mt-2 text-sm font-bold tabular-nums text-coffee-900">
                 현재 {menuStock[id]}잔
@@ -378,6 +395,10 @@ function drinkImagePath(id: DrinkMenuId): string {
     default:
       return publicAssetPath("/images/optimized/drink/아메리카노.webp");
   }
+}
+
+function isIllustratedMenu(id: DrinkMenuId): boolean {
+  return id === "americano" || id === "latte" || id === "affogato";
 }
 
 function RoastResourceDelta({
@@ -477,9 +498,13 @@ function MenuCraftCard({
   >;
 
   const blockLine = !validation.recipeUnlocked
-    ? "레벨을 올리면 노트가 열려요."
+    ? rec.shopAvailability === "timeWindow"
+      ? "시간대 상점에서 먼저 한정 노트를 담아주세요."
+      : "레벨을 올리면 노트가 열려요."
     : needsPurchase
-      ? "상점에서 레시피를 담아주세요."
+      ? rec.shopAvailability === "timeWindow"
+        ? "떠돌이 판매상에게서 먼저 구매해야 해요."
+        : "상점에서 레시피를 담아주세요."
     : !validation.shotsOk
       ? t("cafe.menuCraft.needShots", { have: shots, need: rec.shots })
       : !validation.beansOk && needsBeans
@@ -534,7 +559,7 @@ function MenuCraftCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-sm font-semibold text-coffee-900">
-              {t(DRINK_MENU_TEXT_IDS[id].nameTextId)}
+              {drinkMenuName(id, t)}
             </h3>
             {can ? (
               <span className="rounded-full bg-accent-soft/14 px-2 py-0.5 text-[10px] font-semibold text-coffee-800 ring-1 ring-accent-soft/22">
@@ -554,7 +579,7 @@ function MenuCraftCard({
           </div>
 
           <p className="mt-1 text-xs leading-relaxed text-coffee-700/80">
-            {t(DRINK_MENU_TEXT_IDS[id].descriptionTextId)}
+            {drinkMenuDescription(id, t)}
           </p>
 
           <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] font-semibold tabular-nums">

@@ -1,4 +1,5 @@
 import type { LobbySheetId } from "@/features/lobby/config/lobbyHotspots";
+import { totalMenuStock } from "@/features/meta/balance/cafeEconomy";
 import type { AppPersistState } from "@/features/meta/types/gameState";
 import { t } from "@/locale/i18n";
 
@@ -13,10 +14,7 @@ export function buildLobbySheetSummary(
   state: SheetSnapshot,
 ): string {
   const { cafeState, puzzleProgress, playerResources } = state;
-  const stock =
-    cafeState.menuStock.americano +
-    cafeState.menuStock.latte +
-    cafeState.menuStock.affogato;
+  const stock = totalMenuStock(cafeState.menuStock);
 
   switch (sheet) {
     case "roast":

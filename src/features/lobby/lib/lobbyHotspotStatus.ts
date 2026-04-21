@@ -1,23 +1,34 @@
 import { getCafeRuntimeModifiers } from "@/features/meta/balance/cafeModifiers";
 import {
-  CAFE_ECONOMY,
   MENU_ORDER,
-  MENU_UNLOCK_CAFE_LEVEL,
+  totalMenuStock,
 } from "@/features/meta/balance/cafeEconomy";
+import { validateCraftDrink } from "@/features/meta/economy/crafting";
+import { normalizeAccountLevelState } from "@/features/meta/progression/missionEngine";
 import type { LobbyHotspotId } from "@/features/lobby/config/lobbyHotspots";
 import type { AppPersistState } from "@/features/meta/types/gameState";
 
-type Snapshot = Pick<AppPersistState, "cafeState" | "playerResources">;
+type Snapshot = Pick<
+  AppPersistState,
+  "accountLevel" | "beverageCodex" | "cafeState" | "playerResources"
+>;
 
 function hasAnyCraftable(
-  cafe: Snapshot["cafeState"],
-  beans: number,
-  shots: number,
+  state: Snapshot,
 ): boolean {
+  const account = normalizeAccountLevelState(state.accountLevel);
   for (const id of MENU_ORDER) {
-    if (cafe.cafeLevel < (MENU_UNLOCK_CAFE_LEVEL[id] ?? 1)) continue;
-    const r = CAFE_ECONOMY.recipe[id];
-    if (shots >= r.shots && beans >= r.beans) return true;
+    if (
+      validateCraftDrink({
+        id,
+        account,
+        beverageCodex: state.beverageCodex,
+        cafeState: state.cafeState,
+        beans: state.playerResources.beans,
+      }).canCraft
+    ) {
+      return true;
+    }
   }
   return false;
 }
@@ -33,7 +44,7 @@ export function buildLobbyHotspotStatusTags(
   const beans = playerResources.beans;
   const shots = cafeState.espressoShots;
   const stock = cafeState.menuStock;
-  const total = stock.americano + stock.latte + stock.affogato;
+  const total = totalMenuStock(stock);
 
   const roastTag =
     shots >= m.maxShots
@@ -45,7 +56,7 @@ export function buildLobbyHotspotStatusTags(
   let showcaseTag: string;
   if (total > 0) {
     showcaseTag = "진열 중";
-  } else if (hasAnyCraftable(cafeState, beans, shots)) {
+  } else if (hasAnyCraftable(state)) {
     showcaseTag = "제작하기";
   } else if (shots < 1) {
     showcaseTag = "베이스 부족";

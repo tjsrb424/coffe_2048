@@ -15,7 +15,19 @@ export type PuzzleProgress = {
   totalRuns: number;
 };
 
-export type DrinkMenuId = "americano" | "latte" | "affogato";
+export type StandardDrinkMenuId = "americano" | "latte" | "affogato";
+
+export type TimeDrinkMenuId =
+  | "morning_mist_latte"
+  | "dawn_honey_shot"
+  | "noon_citrus_coffee"
+  | "traveler_blend"
+  | "evening_caramel_crema"
+  | "sunset_tea_latte"
+  | "night_velvet_mocha"
+  | "midnight_tonic";
+
+export type DrinkMenuId = StandardDrinkMenuId | TimeDrinkMenuId;
 
 export type MenuStock = Record<DrinkMenuId, number>;
 

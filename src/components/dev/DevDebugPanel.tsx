@@ -11,9 +11,17 @@ import { HeartIcon } from "@/components/ui/HeartIcon";
 import { useGameFeedback } from "@/hooks/useGameFeedback";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/useAppStore";
+import { useCustomerStore } from "@/stores/useCustomerStore";
 
 function safeJsonStringify(value: unknown): string {
   return JSON.stringify(value, null, 2);
+}
+
+function isDebugSaveBundle(
+  value: unknown,
+): value is { app?: unknown; customers?: unknown } {
+  if (!value || typeof value !== "object") return false;
+  return "app" in value || "customers" in value;
 }
 
 export function DevDebugPanel({ className }: { className?: string }) {
@@ -29,6 +37,9 @@ export function DevDebugPanel({ className }: { className?: string }) {
   const exportSave = useAppStore((s) => s.exportSave);
   const importSave = useAppStore((s) => s.importSave);
   const resetSave = useAppStore((s) => s.resetSave);
+  const exportCustomerSave = useCustomerStore((s) => s.exportCustomerSave);
+  const importCustomerSave = useCustomerStore((s) => s.importCustomerSave);
+  const resetCustomerSave = useCustomerStore((s) => s.resetCustomerSave);
 
   const [open, setOpen] = useState(false);
   const [jsonText, setJsonText] = useState("");
@@ -52,14 +63,18 @@ export function DevDebugPanel({ className }: { className?: string }) {
   const copySave = useCallback(async () => {
     lightTap();
     try {
-      const txt = safeJsonStringify(exportSave());
+      const txt = safeJsonStringify({
+        format: "coffee2048-debug-save-bundle",
+        app: exportSave(),
+        customers: exportCustomerSave(),
+      });
       setJsonText(txt);
       await navigator.clipboard.writeText(txt);
-      setStatus("세이브 JSON을 클립보드에 복사했어요.");
+      setStatus("앱 + 손님 세이브 JSON을 클립보드에 복사했어요.");
     } catch {
       setStatus("복사 실패: 브라우저 권한을 확인해주세요.");
     }
-  }, [exportSave, lightTap]);
+  }, [exportCustomerSave, exportSave, lightTap]);
 
   const pasteAndImport = useCallback(async () => {
     lightTap();
@@ -69,18 +84,22 @@ export function DevDebugPanel({ className }: { className?: string }) {
           ? jsonText
           : await navigator.clipboard.readText();
       const parsed = JSON.parse(txt);
-      const ok = importSave(parsed);
+      const ok = isDebugSaveBundle(parsed)
+        ? (("app" in parsed ? importSave(parsed.app) : true) &&
+            ("customers" in parsed ? importCustomerSave(parsed.customers) : true))
+        : importSave(parsed);
       setStatus(ok ? "세이브를 불러왔어요." : "세이브 형식이 올바르지 않아요.");
     } catch {
       setStatus("불러오기 실패: JSON 형식을 확인해주세요.");
     }
-  }, [importSave, jsonText, lightTap]);
+  }, [importCustomerSave, importSave, jsonText, lightTap]);
 
   const doReset = useCallback(() => {
     lightTap();
     resetSave();
-    setStatus("세이브를 초기화했어요. (설정은 유지)");
-  }, [lightTap, resetSave]);
+    resetCustomerSave();
+    setStatus("앱 + 손님 세이브를 초기화했어요. (설정은 유지)");
+  }, [lightTap, resetCustomerSave, resetSave]);
 
   const giveShots = useCallback(
     (delta: number) => {
@@ -268,7 +287,7 @@ export function DevDebugPanel({ className }: { className?: string }) {
               <textarea
                 value={jsonText}
                 onChange={(e) => setJsonText(e.target.value)}
-                placeholder="여기에 세이브 JSON을 붙여넣고 '세이브 불러오기'를 누르세요."
+                placeholder="여기에 앱/손님 세이브 JSON을 붙여넣고 '세이브 불러오기'를 누르세요."
                 className="min-h-[120px] w-full resize-y rounded-2xl bg-cream-50/90 p-3 text-[11px] leading-relaxed text-coffee-900 ring-1 ring-coffee-600/10 outline-none focus:ring-2 focus:ring-coffee-600/25"
               />
             </div>
