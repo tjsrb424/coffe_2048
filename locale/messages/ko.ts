@@ -54,6 +54,12 @@ export const koMessages = {
   "lobby.summary.counter.stockSelling": "진열 {{stock}}잔 · 판매 중",
   "lobby.summary.puzzle": "하트 {{hearts}} · 베스트 타일 {{bestTile}}",
   "lobby.summary.shop": "보유 코인 {{coins}} · 재료와 레시피 준비",
+  "lobby.shopHint.timeShopLabel": "떠돌이 판매상",
+  "lobby.shopHint.timeShopReady":
+    "{{slot}}엔 떠돌이 판매상에 {{name}} 노트가 나와 있어요.",
+  "lobby.shopHint.timeShopNext":
+    "다음은 Lv.{{level}}에 {{name}} 노트가 열려요.",
+  "lobby.shopHint.timeShopCta": "판매상 보기",
 
   "lobby.ops.craftHint.craftable": "제작 가능",
   "lobby.ops.craftHint.baseShort": "베이스 부족",
@@ -377,9 +383,12 @@ export const koMessages = {
     "진열이 비어 있어요. 쇼케이스에서 잔을 만든 뒤 판매를 개시해 주세요.",
   "cafeStatus.link": "쇼케이스 열기",
 
-  "offlineSales.heading": "오프라인 정산",
+  "offlineSales.heading": "오프라인 보상",
   "offlineSales.body":
-    "잠깐 자리를 비운 사이 {{sold}}잔이 팔려서 +{{coins}}코인이 들어왔어요.",
+    "{{time}} 동안 {{sold}}잔이 조용히 나가서 +{{coins}}코인을 챙겨 둘 수 있어요.",
+  "offlineSales.note": "오프라인 판매 1차 버전이라 판매 수익 일부만 차분히 정산해요.",
+  "offlineSales.ready": "받을 코인",
+  "offlineSales.claim": "보상 받기",
 
   "sellPulse.heading": "카운터 소식",
   "sellPulse.lineOffline":

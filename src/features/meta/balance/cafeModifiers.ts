@@ -7,9 +7,10 @@ export const CAFE_UPGRADE_MAX_LEVEL = 12;
 export type CafeUpgradeTrack = "roast" | "display" | "ambiance";
 
 const UPGRADE_COST = {
-  roast: { base: 52, perLevel: 30 },
-  display: { base: 48, perLevel: 34 },
-  ambiance: { base: 50, perLevel: 32 },
+  // 2차 밸런스: 초반 진입 비용은 낮추고, 중후반 누적 투자로 차이를 만든다.
+  roast: { base: 40, perLevel: 26 },
+  display: { base: 36, perLevel: 28 },
+  ambiance: { base: 38, perLevel: 27 },
 } as const;
 
 export function upgradeCost(

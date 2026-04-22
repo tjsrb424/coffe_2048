@@ -209,3 +209,96 @@ test("customer affection and story state survives reload", async ({ page }) => {
   const afterReload = await exportDebugSaveBundle(page);
   expect(afterReload.customers).toEqual(beforeReload.customers);
 });
+
+test("offline reward waits for claim and survives reload", async ({ page }) => {
+  test.setTimeout(90_000);
+  const fixedTime = "2026-04-23T10:00:00";
+  const nowMs = new Date(fixedTime).getTime();
+  const offlineStartedAtMs = nowMs - 30 * 60 * 1000;
+  const bundle = buildDebugSaveBundle({
+    nowMs,
+    app: {
+      playerResources: {
+        coins: 1_000,
+      },
+      cafeState: {
+        displaySellingActive: true,
+        lastAutoSellAtMs: offlineStartedAtMs,
+        menuStock: {
+          americano: 3,
+        },
+        lastOfflineSaleAtMs: 0,
+        lastOfflineSaleCoins: 0,
+        lastOfflineSaleSoldCount: 0,
+        pendingOfflineReward: null,
+      },
+      meta: {
+        lastHeartRegenAtMs: nowMs,
+        lastSeenAtMs: offlineStartedAtMs,
+      },
+    },
+  });
+
+  await installFixedClock(page, fixedTime);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+
+  await page.addInitScript((seed) => {
+    if (window.sessionStorage.getItem("__offline-reward-seeded__") === "1") {
+      return;
+    }
+    window.localStorage.setItem(
+      "coffee-2048-save-v2",
+      JSON.stringify({
+        state: seed.app,
+        version: 4,
+      }),
+    );
+    window.localStorage.setItem(
+      "coffee2048_customers_v1",
+      JSON.stringify({
+        state: seed.customers,
+        version: 6,
+      }),
+    );
+    window.sessionStorage.setItem("__offline-reward-seeded__", "1");
+  }, bundle);
+  await page.goto("/lobby");
+
+  const claimButton = page.getByRole("button", { name: "보상 받기" });
+  await claimButton.scrollIntoViewIfNeeded();
+  await expect(page.getByText("오프라인 보상")).toBeVisible();
+  await expect(claimButton).toBeVisible();
+
+  await page.reload();
+
+  const beforeClaim = await exportDebugSaveBundle(page);
+  expect(beforeClaim.app.playerResources.coins).toBe(1_000);
+  expect(beforeClaim.app.cafeState.menuStock.americano).toBe(0);
+  expect(beforeClaim.app.cafeState.displaySellingActive).toBe(false);
+  expect(beforeClaim.app.cafeState.pendingOfflineReward).toMatchObject({
+    soldCount: 3,
+    pendingCoins: 18,
+  });
+  expect(beforeClaim.app.cafeState.pendingOfflineReward?.generatedAtMs).toBeGreaterThanOrEqual(
+    nowMs,
+  );
+  expect(beforeClaim.app.cafeState.pendingOfflineReward?.generatedAtMs).toBeLessThan(
+    nowMs + 5_000,
+  );
+
+  await claimButton.click();
+
+  const afterClaim = await exportDebugSaveBundle(page);
+  expect(afterClaim.app.playerResources.coins).toBe(1_018);
+  expect(afterClaim.app.cafeState.pendingOfflineReward).toBeNull();
+  expect(afterClaim.app.cafeState.lastOfflineSaleCoins).toBe(18);
+  expect(afterClaim.app.cafeState.lastOfflineSaleSoldCount).toBe(3);
+
+  await page.reload();
+  await expect(page.getByText("오프라인 보상")).toHaveCount(0);
+
+  const afterReload = await exportDebugSaveBundle(page);
+  expect(afterReload.app.playerResources.coins).toBe(1_018);
+  expect(afterReload.app.cafeState.pendingOfflineReward).toBeNull();
+  expect(afterReload.app.cafeState.lastOfflineSaleCoins).toBe(18);
+});

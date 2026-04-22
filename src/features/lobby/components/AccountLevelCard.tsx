@@ -4,12 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Card } from "@/components/ui/Card";
 import {
+  isTimeShopUnlock,
   levelBandForLevel,
   nextUnlockPreview,
 } from "@/features/meta/progression/levelBands";
 import { missionDefinitionById } from "@/features/meta/progression/missionDefinitions";
 import { normalizeAccountLevelState } from "@/features/meta/progression/missionEngine";
 import type { MissionDefinition } from "@/features/meta/types/gameState";
+import { t } from "@/locale/i18n";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/useAppStore";
 
@@ -58,6 +60,9 @@ export function AccountLevelCard() {
   const account = normalizeAccountLevelState(rawAccount);
   const band = levelBandForLevel(account.level);
   const preview = nextUnlockPreview(account.level);
+  const previewDistance = preview ? Math.max(0, preview.level - account.level) : null;
+  const previewIsSoon = previewDistance !== null && previewDistance <= 2;
+  const previewIsTimeShop = preview ? isTimeShopUnlock(preview) : false;
   const completedCount = account.missionSlots.filter(
     (slot) => account.missionProgress[slot.id]?.completed,
   ).length;
@@ -194,10 +199,32 @@ export function AccountLevelCard() {
                   })}
                 </ul>
 
-                <div className="mt-3 rounded-2xl bg-coffee-900/5 px-3 py-2 text-xs leading-relaxed text-coffee-700 ring-1 ring-coffee-600/6">
-                  {preview
-                    ? `다음 Lv.${preview.level} · ${preview.preview}`
-                    : "마지막 향까지 도착했어요"}
+                <div className="mt-3 rounded-2xl bg-coffee-900/5 px-3 py-2.5 text-xs leading-relaxed text-coffee-700 ring-1 ring-coffee-600/6">
+                  {preview ? (
+                    <div>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="rounded-full bg-cream-50/80 px-2 py-0.5 text-[10px] font-bold text-coffee-900 ring-1 ring-coffee-600/8">
+                          {previewIsSoon ? "곧 열림" : "다음 해금"}
+                        </span>
+                        {previewIsTimeShop ? (
+                          <span className="rounded-full bg-accent-soft/16 px-2 py-0.5 text-[10px] font-bold text-coffee-900 ring-1 ring-accent-soft/24">
+                            {t("nav.timeShop")}
+                          </span>
+                        ) : null}
+                        <span className="text-[11px] font-bold text-coffee-800">
+                          Lv.{preview.level}
+                        </span>
+                      </div>
+                      <div className="mt-1 font-bold text-coffee-900">
+                        {preview.title}
+                      </div>
+                      <p className="mt-1 text-[11px] leading-relaxed text-coffee-700/85">
+                        {preview.preview}
+                      </p>
+                    </div>
+                  ) : (
+                    "마지막 향까지 도착했어요"
+                  )}
                 </div>
               </div>
             </Card>

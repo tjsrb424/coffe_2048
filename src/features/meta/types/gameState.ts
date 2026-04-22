@@ -301,6 +301,13 @@ export type MissionEvent =
     }
   | { type: "skinPurchased"; skinId: string };
 
+export type PendingOfflineReward = {
+  generatedAtMs: number;
+  elapsedMs: number;
+  soldCount: number;
+  pendingCoins: number;
+};
+
 export type CafeState = {
   cafeLevel: number;
   roastLevel: number;
@@ -325,6 +332,8 @@ export type CafeState = {
   lastOfflineSaleAtMs: number;
   lastOfflineSaleCoins: number;
   lastOfflineSaleSoldCount: number;
+  /** 아직 수령하지 않은 오프라인 보상 */
+  pendingOfflineReward: PendingOfflineReward | null;
 };
 
 export type SettingsState = {
@@ -338,6 +347,8 @@ export type SettingsState = {
 export type MetaRuntimeState = {
   /** 하트 회복 기준 시각(ms). 0이면 첫 진입 시 현재 시각으로 초기화 */
   lastHeartRegenAtMs: number;
+  /** 오프라인 보상 계산 기준 마지막 접속 시각(ms) */
+  lastSeenAtMs: number;
 };
 
 /** 웹 BM 권한(실결제 없음 — placeholder 연동용) */

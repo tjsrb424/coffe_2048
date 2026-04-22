@@ -498,9 +498,14 @@ export const useCustomerStore = create<CustomerStore>()(
 
       ensureSaleSession: (nowMs) => {
         const now = nowMs ?? Date.now();
-        const s = get();
-        if (s.saleSession) return;
+        get().ensureFeaturedForToday(now);
         get().ensureFeaturedQuotaForToday(now);
+        const s = get();
+        const nowDayKey = calendarDayKeyUtc(now);
+        const sessionDayKey = s.saleSession
+          ? calendarDayKeyUtc(s.saleSession.startedAtMs)
+          : null;
+        if (s.saleSession && sessionDayKey === nowDayKey) return;
         const ids = SAMPLE_CUSTOMERS.map((c) => c.id);
         const featured = s.featuredCustomerId;
         const canFeatureMore =
@@ -798,9 +803,15 @@ export const useCustomerStore = create<CustomerStore>()(
       importCustomerSave: (data) => {
         if (!data || typeof data !== "object") return false;
         const next = normalizeCustomerSaveState(data);
-        const nextSaleSession = normalizeImportedSaleSession(
+        const importedSaleSession = normalizeImportedSaleSession(
           (data as { saleSession?: unknown }).saleSession,
         );
+        const nowDayKey = calendarDayKeyUtc(Date.now());
+        const nextSaleSession =
+          importedSaleSession &&
+          calendarDayKeyUtc(importedSaleSession.startedAtMs) === nowDayKey
+            ? importedSaleSession
+            : null;
         set({
           ...next,
           lastCounterSalePing: null,

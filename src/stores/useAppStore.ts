@@ -46,6 +46,7 @@ import {
   upgradeCost,
 } from "@/features/meta/balance/cafeModifiers";
 import { computePuzzleRewards } from "@/features/meta/rewards/computePuzzleRewards";
+import { simulateOfflineCafeReward } from "@/features/meta/rewards/offlineCafeReward";
 import {
   applyMissionEvent,
   createDefaultAccountLevelState,
@@ -72,6 +73,7 @@ import type {
   MaterialId,
   MetaRuntimeState,
   MissionEvent,
+  PendingOfflineReward,
   PassProgressState,
   PlayerResources,
   PuzzleProgress,
@@ -110,6 +112,7 @@ const defaultCafe: CafeState = {
   lastOfflineSaleAtMs: 0,
   lastOfflineSaleCoins: 0,
   lastOfflineSaleSoldCount: 0,
+  pendingOfflineReward: null,
 };
 
 const defaultAccountLevel: AccountLevelState = createDefaultAccountLevelState(0);
@@ -124,6 +127,7 @@ const defaultSettings: SettingsState = {
 
 const defaultMeta: MetaRuntimeState = {
   lastHeartRegenAtMs: 0,
+  lastSeenAtMs: 0,
 };
 
 const defaultBm: BmEntitlementsState = {
@@ -205,6 +209,9 @@ export type AppStore = AppPersistState & {
     gainedCoins: number;
     soldCount: number;
   }) => void;
+  settleOfflineReward: (nowMs?: number) => PendingOfflineReward | null;
+  claimOfflineReward: (nowMs?: number) => PendingOfflineReward | null;
+  markLastSeenAt: (nowMs?: number) => void;
   purchaseCafeUpgrade: (track: CafeUpgradeTrack) => boolean;
   /** 개발자 디버그: 자원 수치 강제 조정 */
   patchPlayerResources: (patch: Partial<PlayerResources>) => void;
@@ -237,10 +244,106 @@ export type AppStore = AppPersistState & {
   patchLiveOps: (patch: Partial<LiveOpsSaveState>) => void;
 };
 
+function normalizeTimestampMs(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(0, Math.floor(value))
+    : 0;
+}
+
+function normalizePendingOfflineReward(
+  input: unknown,
+): PendingOfflineReward | null {
+  if (!input || typeof input !== "object") return null;
+  const raw = input as Partial<PendingOfflineReward>;
+  const pendingCoins = normalizeTimestampMs(raw.pendingCoins);
+  const soldCount = normalizeTimestampMs(raw.soldCount);
+  if (pendingCoins <= 0 || soldCount <= 0) return null;
+  return {
+    generatedAtMs: normalizeTimestampMs(raw.generatedAtMs),
+    elapsedMs: normalizeTimestampMs(raw.elapsedMs),
+    soldCount,
+    pendingCoins,
+  };
+}
+
+function applyOfflineRewardHydration(next: AppStore): AppStore {
+  const now = Date.now();
+  const pending = next.cafeState.pendingOfflineReward;
+  if (pending && pending.pendingCoins > 0) {
+    return {
+      ...next,
+      meta: {
+        ...next.meta,
+        lastSeenAtMs: now,
+      },
+    };
+  }
+
+  if (!next.cafeState.displaySellingActive) {
+    return next;
+  }
+
+  const totalStock = totalMenuStock(next.cafeState.menuStock);
+  if (totalStock <= 0) {
+    return {
+      ...next,
+      cafeState: {
+        ...next.cafeState,
+        displaySellingActive: false,
+        lastAutoSellAtMs: now,
+      },
+      meta: {
+        ...next.meta,
+        lastSeenAtMs: now,
+      },
+    };
+  }
+
+  const lastSeenAtMs = next.meta.lastSeenAtMs > 0 ? next.meta.lastSeenAtMs : now;
+  const runtime = getCafeRuntimeModifiers(next.cafeState);
+  const reward = simulateOfflineCafeReward({
+    menuStock: next.cafeState.menuStock,
+    elapsedMs: Math.max(0, now - lastSeenAtMs),
+    intervalMs: runtime.autoSellIntervalMs,
+    sellBonus: runtime.sellBonus,
+  });
+
+  if (!reward) {
+    return {
+      ...next,
+      meta: {
+        ...next.meta,
+        lastSeenAtMs: now,
+      },
+    };
+  }
+
+  const remainingStock = totalMenuStock(reward.nextMenuStock);
+  return {
+    ...next,
+    cafeState: {
+      ...next.cafeState,
+      menuStock: reward.nextMenuStock,
+      displaySellingActive: remainingStock > 0,
+      lastAutoSellAtMs: now,
+      pendingOfflineReward: {
+        generatedAtMs: now,
+        elapsedMs: reward.cappedElapsedMs,
+        soldCount: reward.soldCount,
+        pendingCoins: reward.pendingCoins,
+      },
+    },
+    meta: {
+      ...next.meta,
+      lastSeenAtMs: now,
+    },
+  };
+}
+
 function mergePersisted(persisted: unknown, current: AppStore): AppStore {
   if (!persisted || typeof persisted !== "object") return current;
   const p = persisted as Partial<AppPersistState>;
-  return {
+  return applyOfflineRewardHydration({
     ...current,
     playerResources: {
       ...defaultResources,
@@ -270,6 +373,11 @@ function mergePersisted(persisted: unknown, current: AppStore): AppStore {
           ...(p.cafeState?.craftedDrinkIds ?? []),
         ]),
       );
+      merged.pendingOfflineReward = normalizePendingOfflineReward(
+        p.cafeState?.pendingOfflineReward ??
+          current.cafeState.pendingOfflineReward ??
+          defaultCafe.pendingOfflineReward,
+      );
       merged.cafeLevel = recomputeCafeLevel(merged);
       return merged;
     })(),
@@ -284,6 +392,16 @@ function mergePersisted(persisted: unknown, current: AppStore): AppStore {
       ...defaultMeta,
       ...current.meta,
       ...p.meta,
+      lastHeartRegenAtMs: normalizeTimestampMs(
+        p.meta?.lastHeartRegenAtMs ??
+          current.meta.lastHeartRegenAtMs ??
+          defaultMeta.lastHeartRegenAtMs,
+      ),
+      lastSeenAtMs: normalizeTimestampMs(
+        p.meta?.lastSeenAtMs ??
+          current.meta.lastSeenAtMs ??
+          defaultMeta.lastSeenAtMs,
+      ),
     },
     settings: {
       ...defaultSettings,
@@ -358,7 +476,7 @@ function mergePersisted(persisted: unknown, current: AppStore): AppStore {
         ...(p.ownedProductIds ?? []),
       ]),
     ),
-  };
+  });
 }
 
 function migratePersistedState(persisted: unknown): unknown {
@@ -373,6 +491,9 @@ function migratePersistedState(persisted: unknown): unknown {
         state.cafeState?.materialInventory,
       ),
       craftedDrinkIds: state.cafeState?.craftedDrinkIds ?? [],
+      pendingOfflineReward: normalizePendingOfflineReward(
+        state.cafeState?.pendingOfflineReward,
+      ),
     },
     accountLevel: normalizeAccountLevelState(state.accountLevel),
     beverageCodex: normalizeBeverageCodexState(state.beverageCodex),
@@ -382,6 +503,12 @@ function migratePersistedState(persisted: unknown): unknown {
       ownedPuzzleSkinIds: normalizeOwnedPuzzleSkinIds(
         state.cosmetics?.ownedPuzzleSkinIds,
       ),
+    },
+    meta: {
+      ...defaultMeta,
+      ...(state.meta ?? {}),
+      lastHeartRegenAtMs: normalizeTimestampMs(state.meta?.lastHeartRegenAtMs),
+      lastSeenAtMs: normalizeTimestampMs(state.meta?.lastSeenAtMs),
     },
   };
 }
@@ -796,6 +923,137 @@ export const useAppStore = create<AppStore>()(
             lastOfflineSaleSoldCount: soldCount,
           },
         });
+      },
+      settleOfflineReward: (nowMs) => {
+        const now = normalizeTimestampMs(nowMs ?? Date.now());
+        const prev = get();
+        const currentPending = prev.cafeState.pendingOfflineReward;
+        if (currentPending && currentPending.pendingCoins > 0) {
+          if (prev.meta.lastSeenAtMs !== now) {
+            set({
+              meta: {
+                ...prev.meta,
+                lastSeenAtMs: now,
+              },
+            });
+          }
+          return currentPending;
+        }
+
+        const cafe = prev.cafeState;
+        const meta = prev.meta;
+        const lastSeenAtMs = meta.lastSeenAtMs > 0 ? meta.lastSeenAtMs : now;
+
+        if (!cafe.displaySellingActive) {
+          if (meta.lastSeenAtMs !== now) {
+            set({
+              meta: {
+                ...meta,
+                lastSeenAtMs: now,
+              },
+            });
+          }
+          return null;
+        }
+
+        const totalStock = totalMenuStock(cafe.menuStock);
+        if (totalStock <= 0) {
+          set({
+            cafeState: {
+              ...cafe,
+              displaySellingActive: false,
+              lastAutoSellAtMs: now,
+            },
+            meta: {
+              ...meta,
+              lastSeenAtMs: now,
+            },
+          });
+          return null;
+        }
+
+        const runtime = getCafeRuntimeModifiers(cafe);
+        const reward = simulateOfflineCafeReward({
+          menuStock: cafe.menuStock,
+          elapsedMs: Math.max(0, now - lastSeenAtMs),
+          intervalMs: runtime.autoSellIntervalMs,
+          sellBonus: runtime.sellBonus,
+        });
+
+        if (!reward) {
+          set({
+            meta: {
+              ...meta,
+              lastSeenAtMs: now,
+            },
+          });
+          return null;
+        }
+
+        const pendingReward: PendingOfflineReward = {
+          generatedAtMs: now,
+          elapsedMs: reward.cappedElapsedMs,
+          soldCount: reward.soldCount,
+          pendingCoins: reward.pendingCoins,
+        };
+        const remainingStock = totalMenuStock(reward.nextMenuStock);
+
+        set({
+          cafeState: {
+            ...cafe,
+            menuStock: reward.nextMenuStock,
+            displaySellingActive: remainingStock > 0,
+            lastAutoSellAtMs: now,
+            pendingOfflineReward: pendingReward,
+          },
+          meta: {
+            ...meta,
+            lastSeenAtMs: now,
+          },
+        });
+
+        return pendingReward;
+      },
+      claimOfflineReward: (nowMs) => {
+        const now = normalizeTimestampMs(nowMs ?? Date.now());
+        const prev = get();
+        const reward = prev.cafeState.pendingOfflineReward;
+        if (!reward || reward.pendingCoins <= 0) return null;
+
+        set({
+          playerResources: {
+            ...prev.playerResources,
+            coins: prev.playerResources.coins + reward.pendingCoins,
+          },
+          cafeState: {
+            ...prev.cafeState,
+            pendingOfflineReward: null,
+            lastOfflineSaleAtMs: now,
+            lastOfflineSaleCoins: reward.pendingCoins,
+            lastOfflineSaleSoldCount: reward.soldCount,
+          },
+          meta: {
+            ...prev.meta,
+            lastSeenAtMs: now,
+          },
+        });
+
+        get().recordMissionEvent({
+          type: "coinsEarned",
+          amount: reward.pendingCoins,
+          source: "sale",
+        });
+
+        return reward;
+      },
+      markLastSeenAt: (nowMs) => {
+        const now = normalizeTimestampMs(nowMs ?? Date.now());
+        set((s) => ({
+          meta: {
+            ...s.meta,
+            lastSeenAtMs: now,
+          },
+        }));
       },
       purchaseCafeUpgrade: (track) => {
         const prev = get();

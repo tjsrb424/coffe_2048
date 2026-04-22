@@ -15,6 +15,40 @@
 
 ---
 
+## 0-1. 이번 세션 추가 반영 사항
+
+이번 세션에서 현재 상태 기준으로 추가 반영된 파일은 아래다.
+
+- `src/features/meta/progression/levelBands.ts`
+- `src/features/meta/content/timeShop.ts`
+- `src/features/lobby/components/AccountLevelCard.tsx`
+- `src/features/lobby/components/CafeShopSection.tsx`
+- `src/features/timeShop/components/TimeShopScreen.tsx`
+- `locale/messages/ko.ts`
+- `src/features/meta/progression/missionDefinitions.ts`
+- `src/features/meta/economy/recipes.ts`
+- `src/features/meta/economy/materials.ts`
+- `src/features/meta/balance/cafeModifiers.ts`
+- `src/features/meta/rewards/offlineCafeReward.ts`
+- `tests/visual/recipe-ownership.spec.ts`
+- `docs/codex_4th_pass_handoff.md`
+- `prompts/next_cursor_task.md`
+
+핵심 반영 내용:
+- 성장 구조 밸런스 2차로 초반(1~20) 미션 목표치를 낮추고, 라떼/아포가토 구매 가격과 업그레이드 첫 진입 비용을 함께 낮춰 초반 성장이 더 빨리 붙도록 조정했다.
+- 중반(20~50) 선택지 부족을 줄이기 위해 시간대 메뉴 해금 구간을 `18~48`로 재배치했다. 이제 시간대 레시피가 60대 이후에 몰리지 않고 중반 레벨 구간에 분산된다.
+- 이번 세션에서는 그 중반 해금이 실제로 보이도록, 성장 카드의 `다음 해금 preview`, 로비 상점 시트의 `떠돌이 판매상 한 줄 힌트`, 시간대 상점 카드의 `새로 열림 / 지금 추천 / 다음에 열림` 배지를 최소 범위로 추가했다.
+- `LEVEL_UNLOCKS`에 시간대 상점 해금 레벨을 함께 합쳐, 별도 팝업 없이도 `Lv.20 / 22 / 31 / 48` 전후에 다음 한정 메뉴를 성장 카드에서 자연스럽게 확인할 수 있게 정리했다.
+- 로비 상점 시트는 현재 시간대 기준으로 `지금 나와 있는 한정 노트` 또는 `곧 열릴 다음 한정 노트`를 한 줄로 보여주고, 바로 `떠돌이 판매상`으로 넘어갈 수 있게 연결했다.
+- `tests/visual/recipe-ownership.spec.ts`에 중반 해금 인지 UX 회귀 2건을 추가해, `AccountLevelCard` preview와 `TimeShopScreen` 추천/신규 배지가 데스크톱 기준으로 다시 깨지지 않도록 고정했다.
+- 시간대 메뉴 중 `fruitBase` 계열이 원가 기준 적자였던 문제를 재료 가격 조정으로 해소해, 중반 메뉴가 실제로 코인 수급 선택지가 되도록 정리했다.
+- `Lv.31+` 메인 레벨업 미션에서 스킨 구매 / 시간대 레시피 구매 / 스토리 수집처럼 현재 레벨에서 막힐 수 있는 목표를 제거하고, 바로 진척 가능한 판매/제작/매출 목표 중심으로 재구성했다.
+- 후반(50+)은 미션 수치 증가율을 완만하게 낮춰 “레벨은 오르는데 해야 할 일만 늘어나는” 감각을 줄였다.
+- 오프라인 보상은 전체 경제 완화와 겹쳐 과속하지 않도록 `90분 cap + 50% 정산`으로 소폭 낮췄다.
+- `tests/visual/recipe-ownership.spec.ts` 기대값을 새 시간대 레시피 가격에 맞춰 갱신하고 회귀를 다시 통과시켰다.
+
+---
+
 ## 1. 함께 봐야 하는 기준 문서
 
 Cursor는 이 문서 **하나만 읽으면 안 된다.**
@@ -108,7 +142,7 @@ Cursor는 코드를 수정하기 전에 아래를 먼저 확인해야 한다.
 - 메인 저장은 `src/stores/useAppStore.ts`의 Zustand `persist`에 붙어 있다.
 - 메인 키/버전은 `src/features/meta/storage/storageKeys.ts`에서 관리한다.
   - `STORAGE_KEY = "coffee-2048-save-v2"`
-  - `SAVE_SCHEMA_VERSION = 3`
+  - `SAVE_SCHEMA_VERSION = 4`
 - 메인 저장 병합/보정은 `mergePersisted`, `migratePersistedState`에서 처리한다.
 - 손님 애정도/스토리 저장은 별도다.
   - `src/stores/useCustomerStore.ts`
@@ -164,6 +198,12 @@ Cursor는 코드를 수정하기 전에 아래를 먼저 확인해야 한다.
 - 메인 저장:
   - `src/stores/useAppStore.ts`
   - 저장 대상: `playerResources`, `puzzleProgress`, `cafeState`, `accountLevel`, `beverageCodex`, `meta`, `settings`, `bm`, `cosmetics`, `passProgress`, `liveOps`, `ownedProductIds`
+- 오프라인 보상 관련 persisted 필드:
+  - `meta.lastSeenAtMs`
+  - `cafeState.pendingOfflineReward`
+  - `cafeState.lastOfflineSaleAtMs`
+  - `cafeState.lastOfflineSaleCoins`
+  - `cafeState.lastOfflineSaleSoldCount`
 - 손님 저장:
   - `src/stores/useCustomerStore.ts`
   - 저장 대상: `byId`, `featuredCustomerId`, 일일 quota 관련 필드
@@ -302,15 +342,28 @@ Cursor는 바로 구현부터 들어가지 말고 아래 순서로 시작해야 
 - [x] 레벨/미션/스킨/손님 저장 persistence 회귀 테스트 추가 완료 (`tests/visual/meta-persistence.spec.ts`)
 - [x] 실제 판매 write path 기반 손님 애정도/스토리 회귀 테스트 추가 완료 (`tests/visual/customer-sale-flow.spec.ts`)
 - [x] 실제 판매 write path 기반 단골 판정(`isRegular`) 회귀 테스트 추가 완료 (`tests/visual/customer-sale-flow.spec.ts`)
+- [x] 실제 판매 write path 기반 선호 메뉴 보너스(`preferredBonus`) 회귀 테스트 추가 완료 (`tests/visual/customer-sale-flow.spec.ts`)
+- [x] 실제 판매 write path 기반 오늘의 손님 daily quota day-boundary reset/rollover 회귀 테스트 추가 완료 (`tests/visual/customer-sale-flow.spec.ts`)
+- [x] 다음 날 진입 시 대표 손님 교체(`featuredCustomerId`) 및 persistence 회귀 테스트 추가 완료 (`tests/visual/customer-sale-flow.spec.ts`)
+- [x] 실제 판매 뒤 카운터 시트 단골 흔적/팁 ping 최소 UI 회귀 테스트 추가 완료 (`tests/visual/customer-sale-flow.spec.ts`)
+- [x] 날짜 경계 뒤 비저장 `saleSession` 재생성 및 다음 날 판매 지속 회귀 테스트 추가 완료 (`tests/visual/customer-sale-flow.spec.ts`)
+- [x] 마지막 접속 시각(`meta.lastSeenAtMs`) 기반 오프라인 보상 1차 구현 완료
+- [x] 복귀 시 메인 로비 오프라인 보상 카드 노출 및 수령 흐름 구현 완료
+- [x] 오프라인 보상 pending/claim/persistence 회귀 추가 완료 (`tests/visual/meta-persistence.spec.ts`)
+- [x] 성장 구조 밸런스 2차 완료: 미션 목표치 / 초반 레시피 가격 / 시간대 메뉴 해금 레벨 / 재료 가격 / 업그레이드 비용 / 오프라인 보상 비율 재조정
+- [x] 중반 해금 인지 UX 최소 보강 완료: 성장 카드 다음 해금 preview, 로비 상점의 떠돌이 판매상 한 줄 안내, 시간대 상점의 `새로 열림 / 지금 추천 / 다음에 열림` 배지 추가
+- [x] 중반 해금 인지 UX 회귀 추가 완료 (`tests/visual/recipe-ownership.spec.ts`)
 
 ### 9-2. 미완료 또는 임시 처리 항목
 - [x] `/shop`은 실결제 없는 placeholder 상태
 - [x] `passProgress`, `liveOps`는 저장 슬롯 중심이고 보상 규칙은 후속
 - [x] 시간대 레시피 구매 ownership은 여전히 `beverageCodex.purchasedTimeRecipeIds`에 별도 저장됨
 - [x] 레벨/미션/스킨/손님 저장 persistence baseline은 `tests/visual/meta-persistence.spec.ts`로 고정됐음
-- [x] 손님 판매 write path baseline은 `tests/visual/customer-sale-flow.spec.ts`로 고정됐지만, 선호 보너스 세부값 / 일일 quota rollover / 대표 손님 교체까지는 아직 자동화가 얇음
+- [x] 손님 판매 write path baseline은 `tests/visual/customer-sale-flow.spec.ts`로 고정됐고, 선호 보너스 / daily quota day-boundary / 대표 손님 교체 / 단골 흔적 UI / `saleSession` 날짜 경계 재생성까지 포함됨. 다만 day-boundary UI 결합 회귀는 아직 얇음
 - [x] 시간대 판정은 로컬 시간 하드코딩 기준
 - [x] `coffee_2048_project_handoff_master.md` 참조는 남아 있지만 실제 파일은 레포에 없음
+- [x] 오프라인 보상은 아직 1차 단순 버전이라 `진열 중인 재고 판매 + 부분 코인 정산`까지만 다루고, 생산/주문/손님 메타 복합 시뮬레이션은 의도적으로 비웠음
+- [x] 밸런스 2차는 수치 패스 중심이라, 실제 장기 retention 데이터 없이 휴리스틱 기준으로 조정한 상태다
 
 ### 9-3. 현재 구조 기준 핵심 파일 목록
 
@@ -354,8 +407,21 @@ Cursor는 바로 구현부터 들어가지 말고 아래 순서로 시작해야 
 - `passProgress`, `liveOps`는 저장/표시 중심이며 실제 시즌 보상 구조가 아직 닫히지 않았다
 
 ### 10-5. 손님 최소 연결 훅의 실사용 부재
-- 손님 훅은 애정도/스토리/단골 판정 write path까지는 회귀가 고정됐지만, 선호 보너스 세부값·일일 quota rollover·다음 날 대표 손님 교체까지는 아직 얇다
+- 손님 훅은 애정도/스토리/단골 판정/선호 보너스/daily quota day-boundary/대표 손님 교체 write path와 단골 흔적 UI 노출, 비저장 `saleSession` 날짜 경계 재생성까지 회귀가 고정됐다
+- 다만 day-boundary 복합 UI 일관성은 아직 얇다
 - 주문 시스템/특별 원두/대형 보상 구조와는 아직 분리돼 있다
+
+### 10-6. 오프라인 보상 1차의 한계
+- 현재 오프라인 보상은 `진열 재고`만 줄이며, 로스팅/제작/재료 구매까지는 자동 시뮬레이션하지 않는다
+- `pendingOfflineReward`가 떠 있는 동안 추가 오프라인 누적을 합산하지는 않는다. 먼저 받아서 비우는 흐름을 전제로 한 1차 설계다
+- 손님 애정도/스토리/도감 판매 카운트는 오프라인 보상에서 직접 올리지 않는다. 기존 판매 write path와 충돌을 줄이기 위한 의도적인 제한이다
+
+### 10-7. 밸런스 2차 이후 남는 리스크
+- 시간대 메뉴 해금을 중반으로 당겼기 때문에, 실제 플레이에서 시간대 창 접근 빈도가 충분한지 별도 UX 확인이 필요하다
+- 미션 목표는 현재 “막히지 않게”를 우선한 값이라, 후속 세션에서는 지나치게 쉬워진 구간이 없는지 다시 봐야 한다
+- 스킨 가격/상점 소비는 이번 패스에서 건드리지 않았기 때문에, 코인 여유가 늘어난 뒤에는 퍼즐 스킨 쪽 체감도 따로 확인해야 한다
+- 이번 세션의 안내는 의도적으로 얇은 카드/배지 레이어만 추가한 상태라, 성장 카드를 열지 않는 유저에게도 `다음 해금`이 충분히 보이는지는 실제 플레이 감각을 한 번 더 볼 필요가 있다
+- Playwright 타깃 회귀는 데스크톱 기준으로 통과했지만, 모바일 프로젝트에서는 간헐적인 `webServer` 접속 거절 플래키가 한 번 관측돼 CI 환경에서는 분리 확인이 필요하다
 
 ---
 
@@ -364,21 +430,13 @@ Cursor는 바로 구현부터 들어가지 말고 아래 순서로 시작해야 
 이번 문서를 읽은 뒤 Cursor는 보통 아래 순서로 이어가는 것이 좋다.
 
 ### 1순위
-선호 메뉴 판매 보너스(write path) 회귀를 실제 자동 판매 흐름으로 고정
+성장 구조 수치 회귀 추가: 핵심 레벨 구간(예: `20 / 22 / 31 / 48 / 50`)에서 다음 해금 preview, 시간대 메뉴 노출, 미션 슬롯 수가 의도대로 유지되는지 자동 검증 추가
 
 ### 2순위
-오늘의 손님 daily quota 소진 / 다음 날 rollover / 대표 손님 교체 회귀를 좁은 범위로 고정
+오프라인 보상과 중반 코인 흐름 재점검: 현재 `90분 / 50%` 정산이 중반 한정 메뉴 구매 템포를 너무 밀거나 끊지 않는지 확인
 
 ### 3순위
-단골 흔적/팁 ping이 실제 판매 뒤 표시되는지 최소 UI 회귀를 추가로 고정
-
-### 4순위
-밸런싱 2차 조정
-- 레벨업 속도
-- 코인 수급
-- 재료 가격
-- 레시피 가격
-- 도감 진행 속도
+도감/로비 후속 안내 얇게 보강: 시간대 메뉴를 산 뒤 작업대 제작/도감 진행이 어디서 이어지는지 한 줄 수준으로만 더 자연스럽게 연결
 
 ---
 

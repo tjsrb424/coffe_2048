@@ -5,6 +5,11 @@ import type {
   LevelUnlock,
 } from "@/features/meta/types/gameState";
 import type { BeverageCodexState } from "@/features/meta/types/gameState";
+import { beverageDefinition } from "@/features/meta/content/beverages";
+import {
+  TIME_SHOP_ENTRIES,
+  TIME_SHOP_WINDOWS,
+} from "@/features/meta/content/timeShop";
 import { isOwnedRecipe } from "@/features/meta/economy/recipeOwnership";
 import { recipePurchaseCost as economyRecipePurchaseCost } from "@/features/meta/economy/recipes";
 
@@ -24,7 +29,7 @@ export const LEVEL_BANDS: LevelBand[] = [
   { id: "tier-10", tierIndex: 10, levelMin: 100, levelMax: 100, title: "마스터 카페", backgroundSlot: "tier-bg-10" },
 ];
 
-export const LEVEL_UNLOCKS: LevelUnlock[] = [
+const CORE_LEVEL_UNLOCKS: LevelUnlock[] = [
   {
     level: 1,
     title: "기본 레시피",
@@ -54,6 +59,25 @@ export const LEVEL_UNLOCKS: LevelUnlock[] = [
   { level: 75, title: "단골의 시간", preview: "코인 보너스", coinReward: 260 },
   { level: 100, title: "마스터 카페", preview: "마스터 배경 슬롯", coinReward: 500 },
 ];
+
+const TIME_SHOP_LEVEL_UNLOCKS: LevelUnlock[] = TIME_SHOP_ENTRIES.map((entry) => {
+  const beverage = beverageDefinition(entry.beverageId);
+  const timeLabel = TIME_SHOP_WINDOWS[entry.timeOfDay].label;
+  return {
+    level: entry.requiredLevel,
+    title: `${timeLabel} 한정 노트`,
+    preview: beverage
+      ? `${beverage.name} 노트가 떠돌이 판매상에 보여요`
+      : `${timeLabel} 시간대 한정 노트가 열려요`,
+  };
+});
+
+export const LEVEL_UNLOCKS: LevelUnlock[] = [...CORE_LEVEL_UNLOCKS, ...TIME_SHOP_LEVEL_UNLOCKS]
+  .sort((a, b) => a.level - b.level);
+
+const TIME_SHOP_UNLOCK_KEYS = new Set(
+  TIME_SHOP_LEVEL_UNLOCKS.map((unlock) => `${unlock.level}:${unlock.title}:${unlock.preview}`),
+);
 
 export function missionSlotCountForLevel(level: number): number {
   if (level <= 10) return 1;
@@ -98,6 +122,12 @@ export function nextUnlockPreview(level: number): LevelUnlock | null {
           beanReward: levelRewardForLevel(level + 1).beans,
         }
       : null)
+  );
+}
+
+export function isTimeShopUnlock(unlock: LevelUnlock): boolean {
+  return TIME_SHOP_UNLOCK_KEYS.has(
+    `${unlock.level}:${unlock.title}:${unlock.preview}`,
   );
 }
 

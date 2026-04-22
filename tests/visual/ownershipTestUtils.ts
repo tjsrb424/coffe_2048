@@ -159,13 +159,14 @@ export function buildDebugSaveBundle(
       lastOfflineSaleAtMs: 0,
       lastOfflineSaleCoins: 0,
       lastOfflineSaleSoldCount: 0,
+      pendingOfflineReward: null,
     },
     accountLevel: baseAccountLevel,
     beverageCodex: {
       entries: {},
       purchasedTimeRecipeIds: [],
     },
-    meta: { lastHeartRegenAtMs: nowMs },
+    meta: { lastHeartRegenAtMs: nowMs, lastSeenAtMs: nowMs },
     settings: {
       soundOn: false,
       vibrationOn: false,
@@ -231,6 +232,9 @@ export function buildDebugSaveBundle(
         craftedDrinkIds:
           (appPatch.cafeState?.craftedDrinkIds as AppPersistState["cafeState"]["craftedDrinkIds"] | undefined) ??
           baseApp.cafeState.craftedDrinkIds,
+        pendingOfflineReward:
+          (appPatch.cafeState?.pendingOfflineReward as AppPersistState["cafeState"]["pendingOfflineReward"] | undefined) ??
+          baseApp.cafeState.pendingOfflineReward,
       },
       accountLevel:
         (appPatch.accountLevel as AppPersistState["accountLevel"] | undefined) ??

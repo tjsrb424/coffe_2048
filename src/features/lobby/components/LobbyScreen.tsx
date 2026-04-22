@@ -158,6 +158,7 @@ export function LobbyScreen() {
         ) : null}
 
         <ResourceBar variant="compact" className="mb-2" />
+        <OfflineSalesCard className="mb-3" />
 
         <LobbyOpsDashboard
           onOpenRoast={() => {
@@ -267,9 +268,6 @@ export function LobbyScreen() {
               </Card>
             ) : null}
             <CafeLoopSection sections={["display"]} />
-            <div className="space-y-4">
-              <OfflineSalesCard />
-            </div>
           </>
         )}
         {open?.sheet === "shop" && <CafeShopSection />}

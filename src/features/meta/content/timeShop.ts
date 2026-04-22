@@ -34,29 +34,30 @@ export const TIME_SHOP_WINDOWS: Record<
   },
 };
 
+// 2차 밸런스: 시간대 메뉴는 18~48 구간에 분산해 중반 선택지를 채운다.
 export const TIME_SHOP_ENTRIES: TimeShopEntry[] = [
   {
     id: "time-shop-morning-mist",
     beverageId: "morning_mist_latte",
     timeOfDay: "morning",
-    price: 160,
-    requiredLevel: 61,
+    price: 120,
+    requiredLevel: 18,
     missionTag: "morning-recipe",
   },
   {
     id: "time-shop-dawn-honey",
     beverageId: "dawn_honey_shot",
     timeOfDay: "morning",
-    price: 180,
-    requiredLevel: 67,
+    price: 172,
+    requiredLevel: 36,
     missionTag: "morning-recipe",
   },
   {
     id: "time-shop-noon-citrus",
     beverageId: "noon_citrus_coffee",
     timeOfDay: "day",
-    price: 170,
-    requiredLevel: 62,
+    price: 132,
+    requiredLevel: 22,
     missionTag: "day-recipe",
   },
   {
@@ -64,39 +65,39 @@ export const TIME_SHOP_ENTRIES: TimeShopEntry[] = [
     beverageId: "traveler_blend",
     timeOfDay: "day",
     price: 210,
-    requiredLevel: 70,
+    requiredLevel: 48,
     missionTag: "day-recipe",
   },
   {
     id: "time-shop-evening-caramel",
     beverageId: "evening_caramel_crema",
     timeOfDay: "evening",
-    price: 220,
-    requiredLevel: 64,
+    price: 145,
+    requiredLevel: 26,
     missionTag: "evening-recipe",
   },
   {
     id: "time-shop-sunset-tea",
     beverageId: "sunset_tea_latte",
     timeOfDay: "evening",
-    price: 240,
-    requiredLevel: 69,
+    price: 196,
+    requiredLevel: 44,
     missionTag: "evening-recipe",
   },
   {
     id: "time-shop-night-velvet",
     beverageId: "night_velvet_mocha",
     timeOfDay: "night",
-    price: 250,
-    requiredLevel: 65,
+    price: 160,
+    requiredLevel: 31,
     missionTag: "night-recipe",
   },
   {
     id: "time-shop-midnight-tonic",
     beverageId: "midnight_tonic",
     timeOfDay: "night",
-    price: 260,
-    requiredLevel: 68,
+    price: 184,
+    requiredLevel: 40,
     missionTag: "night-recipe",
   },
 ];
@@ -111,6 +112,26 @@ export function currentTimeOfDay(now = new Date()): TimeOfDayId {
 
 export function timeShopEntriesFor(timeOfDay: TimeOfDayId): TimeShopEntry[] {
   return TIME_SHOP_ENTRIES.filter((entry) => entry.timeOfDay === timeOfDay);
+}
+
+export function unlockedTimeShopEntriesForLevel(
+  level: number,
+  timeOfDay?: TimeOfDayId,
+): TimeShopEntry[] {
+  const pool = timeOfDay ? timeShopEntriesFor(timeOfDay) : TIME_SHOP_ENTRIES;
+  return pool.filter((entry) => entry.requiredLevel <= level);
+}
+
+export function nextTimeShopEntryForLevel(
+  level: number,
+  timeOfDay?: TimeOfDayId,
+): TimeShopEntry | null {
+  const pool = timeOfDay ? timeShopEntriesFor(timeOfDay) : TIME_SHOP_ENTRIES;
+  return (
+    pool
+      .filter((entry) => entry.requiredLevel > level)
+      .sort((a, b) => a.requiredLevel - b.requiredLevel)[0] ?? null
+  );
 }
 
 export function activeTimeShopEntry(

@@ -47,6 +47,27 @@ test("standard recipe ownership purchase flow stays consistent", async ({ page }
   ).toContainText("제작 가능");
 });
 
+test("account level card previews the next midgame time-shop unlock", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  await installFixedClock(page, "2026-04-21T12:00:00");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await seedGameState(page, {
+    level: 20,
+    unlockedRecipeIds: ["americano", "latte", "affogato"],
+    purchasedRecipeIds: ["americano", "latte", "affogato"],
+  });
+
+  await page.goto("/lobby");
+  await page.getByRole("button", { name: "레벨 20 성장 열기" }).click();
+
+  await expect(page.getByText("곧 열림")).toBeVisible();
+  await expect(
+    page.getByText("정오의 시트러스 커피 노트가 떠돌이 판매상에 보여요"),
+  ).toBeVisible();
+});
+
 test("time recipe ownership purchase flow stays consistent", async ({ page }) => {
   test.setTimeout(90_000);
   await installFixedClock(page, "2026-04-21T23:30:00");
@@ -62,7 +83,7 @@ test("time recipe ownership purchase flow stays consistent", async ({ page }) =>
     .locator("li")
     .filter({ hasText: "나이트 벨벳 모카" })
     .first();
-  await expect(nightShopCard).toContainText("250");
+  await expect(nightShopCard).toContainText("160");
   await expect(nightShopCard.getByRole("button")).toBeEnabled();
   await nightShopCard.getByRole("button").click();
   await expect(nightShopCard).toContainText("보유");
@@ -89,6 +110,32 @@ test("time recipe ownership purchase flow stays consistent", async ({ page }) =>
   await expect(
     page.locator("li").filter({ hasText: "나이트 벨벳 모카" }).first(),
   ).toContainText("보유");
+});
+
+test("midgame shop and time shop surface unlock guidance", async ({ page }) => {
+  test.setTimeout(90_000);
+  await installFixedClock(page, "2026-04-21T12:00:00");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await seedGameState(page, {
+    level: 22,
+    unlockedRecipeIds: ["americano", "latte", "affogato"],
+    purchasedRecipeIds: ["americano", "latte", "affogato"],
+  });
+
+  await openLobbyShop(page);
+  await expect(
+    page.getByText("낮엔 떠돌이 판매상에 정오의 시트러스 커피 노트가 나와 있어요."),
+  ).toBeVisible();
+
+  await page.getByRole("link", { name: "판매상 보기" }).click();
+  await page.waitForURL(/\/time-shop\/?$/);
+
+  const dayShopCard = page
+    .locator("li")
+    .filter({ hasText: "정오의 시트러스 커피" })
+    .first();
+  await expect(dayShopCard).toContainText("새로 열림");
+  await expect(dayShopCard).toContainText("지금 추천");
 });
 
 test("helper-backed split ownership sources still resolve after reload", async ({

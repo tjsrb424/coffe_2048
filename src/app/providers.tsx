@@ -8,12 +8,14 @@ import { GlobalCafeSellToast } from "@/components/economy/GlobalCafeSellToast";
 import { GlobalAssetWarmup } from "@/components/system/GlobalAssetWarmup";
 import { GlobalSceneTransition } from "@/components/system/GlobalSceneTransition";
 import { SafeClientBoundary } from "@/components/system/SafeClientBoundary";
+import { useOfflineCafeReward } from "@/hooks/useOfflineCafeReward";
 import { useHeartRegenTicker } from "@/hooks/useHeartRegenTicker";
 import { useReducedMotionPreference } from "@/hooks/useReducedMotionPreference";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const reduce = useReducedMotionPreference();
   useHeartRegenTicker();
+  useOfflineCafeReward();
 
   return (
     <MotionConfig reducedMotion={reduce ? "always" : "never"}>

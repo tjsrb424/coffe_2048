@@ -86,21 +86,7 @@ export function GlobalCafeSellToast() {
     [pushSaleToast],
   );
 
-  const onOfflineSettled = useCallback(
-    (input: SaleTickInput) => {
-      if (input.gainedCoins <= 0) return;
-      useLobbyFxStore.getState().pingPurchase("offline");
-      useLobbyFxStore.getState().pingCafeSell({
-        gainedCoins: input.gainedCoins,
-        soldCount: input.soldCount,
-        kind: "offline",
-      });
-      pushSaleToast("offline", input);
-    },
-    [pushSaleToast],
-  );
-
-  useCafeAutoSell({ onCoinsEarned, onOfflineSettled });
+  useCafeAutoSell({ onCoinsEarned });
 
   useEffect(() => {
     if (coinToast == null) return;

@@ -29,6 +29,30 @@ export function TimeShopScreen() {
   const purchaseTimeShopRecipe = useAppStore((s) => s.purchaseTimeShopRecipe);
   const { lightTap } = useGameFeedback();
   const entries = useMemo(() => timeShopEntriesFor(slot), [slot]);
+  const recommendedEntry = useMemo(
+    () =>
+      entries.find(
+        (entry) =>
+          entry.requiredLevel <= account.level &&
+          !codex.purchasedTimeRecipeIds.includes(entry.beverageId),
+      ) ?? null,
+    [account.level, codex.purchasedTimeRecipeIds, entries],
+  );
+  const nextLockedEntry = useMemo(
+    () =>
+      entries.find(
+        (entry) =>
+          entry.requiredLevel > account.level &&
+          !codex.purchasedTimeRecipeIds.includes(entry.beverageId),
+      ) ?? null,
+    [account.level, codex.purchasedTimeRecipeIds, entries],
+  );
+  const recommendedBeverage = recommendedEntry
+    ? beverageDefinition(recommendedEntry.beverageId)
+    : null;
+  const nextLockedBeverage = nextLockedEntry
+    ? beverageDefinition(nextLockedEntry.beverageId)
+    : null;
 
   useEffect(() => {
     const updateSlot = () => setSlot(currentTimeOfDay(new Date()));
@@ -86,6 +110,15 @@ export function TimeShopScreen() {
             ),
           )}
         </div>
+        <div className="mt-3 rounded-2xl bg-coffee-900/5 px-3 py-2 text-xs leading-relaxed text-coffee-700 ring-1 ring-coffee-600/6">
+          {recommendedEntry && recommendedBeverage
+            ? `${TIME_SHOP_WINDOWS[slot].label}엔 ${recommendedBeverage.name} 노트가 막 눈에 들어와요. 작업대와 진열 루프로 바로 이어져요.`
+            : nextLockedEntry &&
+                nextLockedBeverage &&
+                nextLockedEntry.requiredLevel - account.level <= 4
+              ? `다음은 Lv.${nextLockedEntry.requiredLevel}에 ${nextLockedBeverage.name} 노트가 열려요.`
+              : "중반부터는 시간대마다 다른 한정 노트가 조용히 한 장씩 열려요."}
+        </div>
       </Card>
 
       <ul className="space-y-3">
@@ -100,9 +133,16 @@ export function TimeShopScreen() {
           const levelOk = account.level >= entry.requiredLevel;
           const coinOk = coins >= entry.price;
           const canBuy = !purchased && levelOk && coinOk;
+          const isFreshUnlock = !purchased && levelOk && account.level - entry.requiredLevel <= 2;
+          const isRecommended = recommendedEntry?.id === entry.id;
+          const isNextUnlock = !levelOk && nextLockedEntry?.id === entry.id;
           const blockLine = purchased
             ? "이미 보유 중이며 작업대에서 바로 제작할 수 있어요."
-            : !levelOk
+            : isFreshUnlock
+              ? "이번 레벨대에 막 들어온 한정 노트예요."
+              : isRecommended
+                ? "지금 시간대에 담아두기 좋은 첫 한정 메뉴예요."
+                : !levelOk
               ? `Lv.${entry.requiredLevel}부터 구매할 수 있어요.`
               : !coinOk
                 ? "코인이 조금 부족해요."
@@ -123,6 +163,21 @@ export function TimeShopScreen() {
                       <span className="rounded-full bg-cream-200/70 px-2 py-0.5 text-[10px] font-bold text-coffee-700 ring-1 ring-coffee-600/8">
                         Lv.{entry.requiredLevel}
                       </span>
+                      {isFreshUnlock ? (
+                        <span className="rounded-full bg-[#f6dfb9] px-2 py-0.5 text-[10px] font-bold text-coffee-950 ring-1 ring-[#d7b47a]/60">
+                          새로 열림
+                        </span>
+                      ) : null}
+                      {isRecommended ? (
+                        <span className="rounded-full bg-accent-mint/24 px-2 py-0.5 text-[10px] font-bold text-coffee-950 ring-1 ring-accent-mint/35">
+                          지금 추천
+                        </span>
+                      ) : null}
+                      {isNextUnlock ? (
+                        <span className="rounded-full bg-coffee-900/5 px-2 py-0.5 text-[10px] font-bold text-coffee-700 ring-1 ring-coffee-600/10">
+                          다음에 열림
+                        </span>
+                      ) : null}
                     </div>
                     <p className="mt-1 text-xs leading-relaxed text-coffee-700/78">
                       {beverage.description}

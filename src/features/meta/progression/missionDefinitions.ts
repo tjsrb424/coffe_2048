@@ -1,27 +1,12 @@
 import {
   MissionCategory,
   MissionType,
-  type BeverageId,
   type DrinkMenuId,
   type MissionDefinition,
-  type TimeOfDayId,
 } from "@/features/meta/types/gameState";
 import { MAX_ACCOUNT_LEVEL, missionSlotCountForLevel } from "./levelBands";
 
 const DRINK_ORDER: DrinkMenuId[] = ["americano", "latte", "affogato"];
-const TIME_RECIPE_ORDER: Array<{
-  beverageId: BeverageId;
-  timeOfDay: TimeOfDayId;
-}> = [
-  { beverageId: "morning_mist_latte", timeOfDay: "morning" },
-  { beverageId: "dawn_honey_shot", timeOfDay: "morning" },
-  { beverageId: "noon_citrus_coffee", timeOfDay: "day" },
-  { beverageId: "traveler_blend", timeOfDay: "day" },
-  { beverageId: "evening_caramel_crema", timeOfDay: "evening" },
-  { beverageId: "sunset_tea_latte", timeOfDay: "evening" },
-  { beverageId: "night_velvet_mocha", timeOfDay: "night" },
-  { beverageId: "midnight_tonic", timeOfDay: "night" },
-];
 
 function drinkLabel(id: DrinkMenuId): string {
   if (id === "latte") return "라떼";
@@ -29,35 +14,51 @@ function drinkLabel(id: DrinkMenuId): string {
   return "아메리카노";
 }
 
+function phasedTarget(
+  level: number,
+  input: { base: number; early: number; mid: number; late: number },
+): number {
+  const lv = Math.max(1, Math.floor(level));
+  const earlyLevels = Math.min(lv, 20);
+  const midLevels = Math.max(0, Math.min(lv - 20, 30));
+  const lateLevels = Math.max(0, lv - 50);
+  return Math.floor(
+    input.base +
+      earlyLevels * input.early +
+      midLevels * input.mid +
+      lateLevels * input.late,
+  );
+}
+
 function targetFor(type: MissionType, level: number): number {
   switch (type) {
     case MissionType.CumulativeScore:
-      return 120 + level * 70;
+      return phasedTarget(level, { base: 110, early: 48, mid: 58, late: 46 });
     case MissionType.SingleSessionScore:
-      return 96 + level * 24;
+      return phasedTarget(level, { base: 100, early: 18, mid: 20, late: 18 });
     case MissionType.MergeCount:
-      return 5 + Math.floor(level * 1.15);
+      return phasedTarget(level, { base: 4, early: 1, mid: 0.95, late: 0.75 });
     case MissionType.BeansEarned:
-      return 1 + Math.floor(level / 5);
+      return 1 + Math.floor(level / 6);
     case MissionType.BeansRoasted:
-      return 2 + Math.floor(level / 4);
+      return 2 + Math.floor(level / 5);
     case MissionType.ShotsCreated:
-      return 3 + Math.floor(level / 4);
+      return 3 + Math.floor(level / 5);
     case MissionType.DrinksCrafted:
-      return 1 + Math.floor(level / 12);
-    case MissionType.SpecificDrinkSold:
       return 1 + Math.floor(level / 14);
+    case MissionType.SpecificDrinkSold:
+      return 1 + Math.floor(level / 16);
     case MissionType.TotalDrinksSold:
-      return 2 + Math.floor(level / 9);
+      return 2 + Math.floor(level / 12);
     case MissionType.CoinsEarned:
-      return 25 + level * 12;
+      return phasedTarget(level, { base: 18, early: 8, mid: 9, late: 7 });
     case MissionType.RecipePurchased:
     case MissionType.CollectionRegistered:
     case MissionType.TimeRecipePurchased:
     case MissionType.SkinPurchased:
       return 1;
     case MissionType.TimeDrinkSold:
-      return 1 + Math.floor(level / 18);
+      return 1 + Math.floor(level / 20);
     default:
       return 1;
   }
@@ -65,10 +66,6 @@ function targetFor(type: MissionType, level: number): number {
 
 function definitionFor(level: number, slotIndex: number): MissionDefinition {
   const drinkId = DRINK_ORDER[(level + slotIndex) % DRINK_ORDER.length]!;
-  const timeRecipe =
-    TIME_RECIPE_ORDER[Math.floor(level / 10) % TIME_RECIPE_ORDER.length]!;
-  const timeOfDay = timeRecipe.timeOfDay;
-  const timeRecipeId = timeRecipe.beverageId;
 
   if (level === 2 && slotIndex === 0) {
     return {
@@ -153,54 +150,38 @@ function definitionFor(level: number, slotIndex: number): MissionDefinition {
     };
   }
 
+  // 2차 밸런스: 중후반 핵심 레벨업 미션은 현재 레벨에서 바로 진척 가능한
+  // 판매/제작/코인 루프로만 구성해 성장이 막히지 않게 한다.
   const variants = [
     MissionType.TotalDrinksSold,
     MissionType.SpecificDrinkSold,
-    MissionType.CollectionRegistered,
-    MissionType.TimeDrinkSold,
-    MissionType.SkinPurchased,
-    MissionType.TimeRecipePurchased,
+    MissionType.DrinksCrafted,
+    MissionType.CoinsEarned,
   ];
-  const type = variants[level % variants.length]!;
+  const type = variants[Math.floor(level / 2) % variants.length]!;
   const title =
     type === MissionType.TotalDrinksSold
       ? "음료 판매"
       : type === MissionType.SpecificDrinkSold
         ? `${drinkLabel(drinkId)} 판매`
-        : type === MissionType.CollectionRegistered
-          ? "손님 기록"
-          : type === MissionType.TimeDrinkSold
-            ? "시간대 판매"
-            : type === MissionType.SkinPurchased
-              ? "새 꾸밈 담기"
-              : "시간대 노트";
+        : type === MissionType.DrinksCrafted
+          ? "메뉴 채우기"
+          : "매출 모으기";
   return {
     id: `lv${level}-slot${slotIndex}-${type}`,
     level,
     slotIndex,
     category:
-      type === MissionType.CollectionRegistered
-        ? MissionCategory.Collection
-        : type === MissionType.SpecificDrinkSold ||
-            type === MissionType.TotalDrinksSold ||
-            type === MissionType.TimeDrinkSold
-          ? MissionCategory.Sales
-          : MissionCategory.ShopTimeLink,
+      type === MissionType.SpecificDrinkSold ||
+      type === MissionType.TotalDrinksSold ||
+      type === MissionType.CoinsEarned
+        ? MissionCategory.Sales
+        : MissionCategory.Production,
     type,
     title,
     target: targetFor(type, level),
     params: {
-      drinkId:
-        type === MissionType.SpecificDrinkSold ? drinkId : undefined,
-      beverageId:
-        type === MissionType.TimeRecipePurchased ? timeRecipeId : undefined,
-      timeOfDay:
-        type === MissionType.TimeDrinkSold ||
-        type === MissionType.TimeRecipePurchased
-          ? timeOfDay
-          : undefined,
-      collectionKind:
-        type === MissionType.CollectionRegistered ? "story" : undefined,
+      drinkId: type === MissionType.SpecificDrinkSold ? drinkId : undefined,
     },
   };
 }

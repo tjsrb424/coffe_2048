@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -11,6 +12,13 @@ import {
   drinkMenuName,
 } from "@/data/drinkMenuTextIds";
 import { STANDARD_MENU_ORDER } from "@/features/meta/balance/cafeEconomy";
+import { beverageDefinition } from "@/features/meta/content/beverages";
+import {
+  TIME_SHOP_WINDOWS,
+  currentTimeOfDay,
+  nextTimeShopEntryForLevel,
+  timeShopEntriesFor,
+} from "@/features/meta/content/timeShop";
 import { MATERIAL_ORDER, materialDefinition } from "@/features/meta/economy/materials";
 import { isOwnedRecipe } from "@/features/meta/economy/recipeOwnership";
 import { PRICING_DEFINITIONS } from "@/features/meta/economy/pricing";
@@ -42,6 +50,22 @@ export function CafeShopSection() {
   const purchaseRecipe = useAppStore((s) => s.purchaseRecipe);
   const { lightTap } = useGameFeedback();
   const account = normalizeAccountLevelState(rawAccount);
+  const slot = currentTimeOfDay();
+  const currentTimeEntry = timeShopEntriesFor(slot).find(
+    (entry) =>
+      entry.requiredLevel <= account.level &&
+      !codex.purchasedTimeRecipeIds.includes(entry.beverageId),
+  );
+  const nextTimeEntry =
+    currentTimeEntry == null ? nextTimeShopEntryForLevel(account.level, slot) : null;
+  const visibleTimeHint =
+    currentTimeEntry ??
+    (nextTimeEntry && nextTimeEntry.requiredLevel - account.level <= 4
+      ? nextTimeEntry
+      : null);
+  const visibleTimeBeverage = visibleTimeHint
+    ? beverageDefinition(visibleTimeHint.beverageId)
+    : null;
 
   return (
     <div className="space-y-4">
@@ -69,6 +93,35 @@ export function CafeShopSection() {
           </ShopTabButton>
         </div>
       </Card>
+
+      {visibleTimeHint && visibleTimeBeverage ? (
+        <Card className="p-3.5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-coffee-600/60">
+                {t("lobby.shopHint.timeShopLabel")}
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-coffee-700/82">
+                {currentTimeEntry
+                  ? t("lobby.shopHint.timeShopReady", {
+                      slot: TIME_SHOP_WINDOWS[slot].label,
+                      name: visibleTimeBeverage.name,
+                    })
+                  : t("lobby.shopHint.timeShopNext", {
+                      level: visibleTimeHint.requiredLevel,
+                      name: visibleTimeBeverage.name,
+                    })}
+              </p>
+            </div>
+            <Link
+              href="/time-shop"
+              className="shrink-0 rounded-full bg-cream-200/70 px-3 py-1.5 text-[11px] font-bold text-coffee-900 ring-1 ring-coffee-600/8 transition-colors hover:bg-cream-50"
+            >
+              {t("lobby.shopHint.timeShopCta")}
+            </Link>
+          </div>
+        </Card>
+      ) : null}
 
       {tab === "materials" ? (
         <ul className="grid grid-cols-1 gap-3">
