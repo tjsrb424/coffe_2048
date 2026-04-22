@@ -19,6 +19,9 @@
 
 이번 세션에서 현재 상태 기준으로 추가 반영된 파일은 아래다.
 
+- `docs/figma_ui_swap_plan.md`
+- `docs/release_scope_1_0.md`
+- `docs/09_cursor_workflow.md`
 - `src/features/meta/progression/levelBands.ts`
 - `src/features/meta/content/timeShop.ts`
 - `src/features/lobby/components/AccountLevelCard.tsx`
@@ -35,6 +38,14 @@
 - `prompts/next_cursor_task.md`
 
 핵심 반영 내용:
+- 이번 세션에서는 현재 UI를 최종 비주얼이 아닌 **기능 셸(functional shell)** 로 정의하고, 이후 Figma 기준 전체 UI 교체를 쉽게 하기 위한 `docs/figma_ui_swap_plan.md`를 추가했다.
+- 문서에서 `기능 셸로 유지할 영역`, `Figma 교체 예정 영역`, `교체 시 깨질 위험이 있는 결합 포인트`, `지금 미리 분리해두면 좋은 컴포넌트`, `유지해야 할 test id / QA 포인트`를 분리해 정리했다.
+- 현재 로비/바텀시트/HUD/상점/time-shop UI는 기능 구현과 QA를 우선하는 셸로 보고, spacing/padding/polish 과투자를 피한다는 전제를 handoff 문서에도 반영했다.
+- 이번 세션에서는 `docs/release_scope_1_0.md`를 추가해, 현재 레포 기준 1.0 출시선을 문서로 고정했다.
+- `docs/09_cursor_workflow.md`의 오래된 경로 예시(`07_roadmap`, `next_task`, `changelog`)는 실제 레포 기준 파일명 중심으로 정리했다.
+- 1.0 포함 범위는 `퍼즐 코어 / 카페 운영 루프 / 성장 메타 / 손님 메타 v1 / 오프라인 보상 1차`로 정리했고, 주문 시스템 / 특별 원두 / 확장형 손님 메타 / 시즌 구조는 1.1 이후로 넘기도록 못 박았다.
+- 1.0 BM은 **보상형 광고 2종만** 포함한다. 즉 `오프라인 보상 x2`, `퍼즐 결과 x2`만 열어 두고, 퍼즐 결과 x2는 `코인 + 원두`에만 적용하며 미션/도감/손님/해금 진척은 배수 대상에서 제외한다.
+- `테마 스킨`, `이펙트 스킨`, `pass/liveOps`, 실결제 확장은 1.1 후보로 문서상 분리했다.
 - 성장 구조 밸런스 2차로 초반(1~20) 미션 목표치를 낮추고, 라떼/아포가토 구매 가격과 업그레이드 첫 진입 비용을 함께 낮춰 초반 성장이 더 빨리 붙도록 조정했다.
 - 중반(20~50) 선택지 부족을 줄이기 위해 시간대 메뉴 해금 구간을 `18~48`로 재배치했다. 이제 시간대 레시피가 60대 이후에 몰리지 않고 중반 레벨 구간에 분산된다.
 - 이번 세션에서는 그 중반 해금이 실제로 보이도록, 성장 카드의 `다음 해금 preview`, 로비 상점 시트의 `떠돌이 판매상 한 줄 힌트`, 시간대 상점 카드의 `새로 열림 / 지금 추천 / 다음에 열림` 배지를 최소 범위로 추가했다.
@@ -55,13 +66,15 @@ Cursor는 이 문서 **하나만 읽으면 안 된다.**
 반드시 아래 문서와 **함께** 봐야 한다.
 
 ### 1-1. 현재 레포에서 실제로 함께 봐야 하는 방향 문서
+- `docs/figma_ui_swap_plan.md`
+- `docs/release_scope_1_0.md`
 - `prompts/next_cursor_task.md`
 - `docs/14_cursor_handoff_update.md`
 - `docs/11_lobby_interaction_direction.md`
 
 주의:
 - 과거 문서에서 반복 참조하는 `coffee_2048_project_handoff_master.md`는 **현재 레포에 없다**.
-- 따라서 현재 작업 방향, 금지사항, 우선순위는 위 3개 문서를 기준으로 읽는 편이 안전하다.
+- 따라서 현재 작업 방향, 금지사항, 우선순위는 위 방향 문서들을 기준으로 읽는 편이 안전하다.
 
 ### 1-2. 이 문서
 - `codex_4th_pass_handoff.md`
@@ -355,8 +368,12 @@ Cursor는 바로 구현부터 들어가지 말고 아래 순서로 시작해야 
 - [x] 중반 해금 인지 UX 회귀 추가 완료 (`tests/visual/recipe-ownership.spec.ts`)
 
 ### 9-2. 미완료 또는 임시 처리 항목
+- [x] 현재 UI는 최종 비주얼이 아니라 기능 셸로 간주하고, Figma 기준 전체 교체는 후속 세션에서 진행하기로 문서상 고정했다
+- [x] 로비/상점/카운터/쇼케이스/HUD/바텀시트는 외형 교체 대상이지만, route / action / test id / source of truth는 유지 대상으로 분리했다
 - [x] `/shop`은 실결제 없는 placeholder 상태
 - [x] `passProgress`, `liveOps`는 저장 슬롯 중심이고 보상 규칙은 후속
+- [x] 1.0 BM 범위는 문서상 `오프라인 보상 x2`, `퍼즐 결과 x2(코인+원두만)`으로 고정했고, 나머지 BM 확장은 1.1 이후로 넘기기로 결정했다
+- [x] `테마 스킨`, `이펙트 스킨`은 1.0 포함 기능이 아니라 1.1 후보로 문서상 분리했다
 - [x] 시간대 레시피 구매 ownership은 여전히 `beverageCodex.purchasedTimeRecipeIds`에 별도 저장됨
 - [x] 레벨/미션/스킨/손님 저장 persistence baseline은 `tests/visual/meta-persistence.spec.ts`로 고정됐음
 - [x] 손님 판매 write path baseline은 `tests/visual/customer-sale-flow.spec.ts`로 고정됐고, 선호 보너스 / daily quota day-boundary / 대표 손님 교체 / 단골 흔적 UI / `saleSession` 날짜 경계 재생성까지 포함됨. 다만 day-boundary UI 결합 회귀는 아직 얇음
@@ -405,6 +422,7 @@ Cursor는 바로 구현부터 들어가지 말고 아래 순서로 시작해야 
 ### 10-4. placeholder 구조의 오해
 - `/shop`은 실결제/BM 구현이 아니라 로컬 placeholder 저장이다
 - `passProgress`, `liveOps`는 저장/표시 중심이며 실제 시즌 보상 구조가 아직 닫히지 않았다
+- 따라서 1.0 출시선 문서에서는 BM을 `/shop` 기준으로 읽지 않고, `오프라인 보상 x2`와 `퍼즐 결과 x2(코인+원두만)`만 출시선에 포함된다고 명시했다
 
 ### 10-5. 손님 최소 연결 훅의 실사용 부재
 - 손님 훅은 애정도/스토리/단골 판정/선호 보너스/daily quota day-boundary/대표 손님 교체 write path와 단골 흔적 UI 노출, 비저장 `saleSession` 날짜 경계 재생성까지 회귀가 고정됐다
@@ -420,6 +438,7 @@ Cursor는 바로 구현부터 들어가지 말고 아래 순서로 시작해야 
 - 시간대 메뉴 해금을 중반으로 당겼기 때문에, 실제 플레이에서 시간대 창 접근 빈도가 충분한지 별도 UX 확인이 필요하다
 - 미션 목표는 현재 “막히지 않게”를 우선한 값이라, 후속 세션에서는 지나치게 쉬워진 구간이 없는지 다시 봐야 한다
 - 스킨 가격/상점 소비는 이번 패스에서 건드리지 않았기 때문에, 코인 여유가 늘어난 뒤에는 퍼즐 스킨 쪽 체감도 따로 확인해야 한다
+- 현재 UI는 기능 셸과 최종 비주얼이 일부 컴포넌트 안에서 섞여 있어, Figma 교체 시 `useAppStore` 직접 참조 / 텍스트 기반 테스트 / 하드코딩된 일러스트 패딩이 결합 포인트가 될 수 있다
 - 이번 세션의 안내는 의도적으로 얇은 카드/배지 레이어만 추가한 상태라, 성장 카드를 열지 않는 유저에게도 `다음 해금`이 충분히 보이는지는 실제 플레이 감각을 한 번 더 볼 필요가 있다
 - Playwright 타깃 회귀는 데스크톱 기준으로 통과했지만, 모바일 프로젝트에서는 간헐적인 `webServer` 접속 거절 플래키가 한 번 관측돼 CI 환경에서는 분리 확인이 필요하다
 
@@ -430,13 +449,13 @@ Cursor는 바로 구현부터 들어가지 말고 아래 순서로 시작해야 
 이번 문서를 읽은 뒤 Cursor는 보통 아래 순서로 이어가는 것이 좋다.
 
 ### 1순위
-성장 구조 수치 회귀 추가: 핵심 레벨 구간(예: `20 / 22 / 31 / 48 / 50`)에서 다음 해금 preview, 시간대 메뉴 노출, 미션 슬롯 수가 의도대로 유지되는지 자동 검증 추가
+1.0 출시 전 핵심 QA 고정: `docs/release_scope_1_0.md` 기준으로 퍼즐 -> 카페 -> 성장 -> 저장 -> 손님 메타 v1 루프가 흔들리지 않도록 필수 회귀를 묶기
 
 ### 2순위
-오프라인 보상과 중반 코인 흐름 재점검: 현재 `90분 / 50%` 정산이 중반 한정 메뉴 구매 템포를 너무 밀거나 끊지 않는지 확인
+1.0 제외 표면 정리: `/shop`, `pass/liveOps`, placeholder BM 문구가 실제 출시 기능처럼 읽히지 않도록 노출 기준과 문구를 정리
 
 ### 3순위
-도감/로비 후속 안내 얇게 보강: 시간대 메뉴를 산 뒤 작업대 제작/도감 진행이 어디서 이어지는지 한 줄 수준으로만 더 자연스럽게 연결
+Figma 교체 전 셸 분리: `docs/figma_ui_swap_plan.md` 기준으로 HUD / 바텀시트 / 로비 패널의 상태와 표현을 더 안전하게 분리하고, test id와 QA 앵커를 유지한 채 교체 포인트를 정리
 
 ---
 
@@ -454,6 +473,8 @@ Cursor는 바로 구현부터 들어가지 말고 아래 순서로 시작해야 
 - docs/codex_4th_pass_handoff.md
 
 3. 방향/금지사항
+- docs/figma_ui_swap_plan.md
+- docs/release_scope_1_0.md
 - docs/14_cursor_handoff_update.md
 - docs/11_lobby_interaction_direction.md
 
@@ -490,7 +511,7 @@ Cursor는 바로 구현부터 들어가지 말고 아래 순서로 시작해야 
 이 문서는 단독 기준 문서가 아니다.
 
 - 현재 레포에 없는 `coffee_2048_project_handoff_master.md`를 전제로 읽으면 혼란이 생긴다.
-- 실제 작업 기준은 `prompts/next_cursor_task.md`, `docs/14_cursor_handoff_update.md`, `docs/11_lobby_interaction_direction.md`, 그리고 이 문서다.
+- 실제 작업 기준은 `docs/figma_ui_swap_plan.md`, `docs/release_scope_1_0.md`, `prompts/next_cursor_task.md`, `docs/14_cursor_handoff_update.md`, `docs/11_lobby_interaction_direction.md`, 그리고 이 문서다.
 
 이번 단계의 핵심은,
 
