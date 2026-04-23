@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -13,6 +13,8 @@ import {
   getRewardedAdMockBehavior,
   getRewardedAdProviderModeOverride,
   getRewardedAdRuntimeDebugInfo,
+  getLastRewardedAdAttempt,
+  subscribeRewardedAdAttemptResults,
   setRewardedAdMockBehavior,
   setRewardedAdProviderModeOverride,
 } from "@/lib/ads/rewardedAds";
@@ -56,6 +58,9 @@ export function DevDebugPanel({ className }: { className?: string }) {
   );
   const [adProviderOverride, setAdProviderOverride] = useState(() =>
     getRewardedAdProviderModeOverride(),
+  );
+  const [lastRewardedAdAttempt, setLastRewardedAdAttempt] = useState(() =>
+    getLastRewardedAdAttempt(),
   );
 
   const title = useMemo(() => "DEV", []);
@@ -123,6 +128,13 @@ export function DevDebugPanel({ className }: { className?: string }) {
   );
 
   const clearStatus = useCallback(() => setStatus(null), []);
+
+  useEffect(() => {
+    setLastRewardedAdAttempt(getLastRewardedAdAttempt());
+    return subscribeRewardedAdAttemptResults((snapshot) => {
+      setLastRewardedAdAttempt(snapshot);
+    });
+  }, []);
 
   return (
     <div
@@ -330,6 +342,25 @@ export function DevDebugPanel({ className }: { className?: string }) {
                   auto
                 </Button>
               </div>
+              {lastRewardedAdAttempt ? (
+                <div className="mt-3 rounded-2xl bg-cream-50/80 px-3 py-2 text-[11px] leading-relaxed text-coffee-800 ring-1 ring-coffee-600/10">
+                  <div>
+                    마지막 광고 시도:{" "}
+                    <span className="font-semibold">
+                      {lastRewardedAdAttempt.placement}
+                    </span>
+                  </div>
+                  <div>
+                    결과:{" "}
+                    <span className="font-semibold">
+                      {lastRewardedAdAttempt.provider}:{lastRewardedAdAttempt.status}
+                    </span>
+                  </div>
+                  {lastRewardedAdAttempt.details ? (
+                    <div>detail: {lastRewardedAdAttempt.details}</div>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
 
             <div className="rounded-2xl bg-coffee-900/5 px-3 py-3 ring-1 ring-coffee-600/10">
@@ -340,7 +371,7 @@ export function DevDebugPanel({ className }: { className?: string }) {
                 현재 mock 결과: <span className="font-semibold">{adMockBehavior}</span>
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
-                {(["success", "cancel", "error", "no_fill", "unsupported"] as const).map((behavior) => (
+                {(["success", "cancel", "error", "timeout", "no_fill", "unsupported"] as const).map((behavior) => (
                   <Button
                     key={behavior}
                     type="button"

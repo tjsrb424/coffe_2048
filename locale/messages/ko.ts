@@ -397,6 +397,8 @@ export const koMessages = {
     "광고 보상을 끝까지 받지 못했어요. 기본 보상은 바로 받을 수 있어요.",
   "offlineSales.adUnavailable":
     "광고를 지금 준비하지 못했어요. 잠시 뒤 다시 시도해 주세요.",
+  "offlineSales.adTimeout":
+    "광고 응답이 시간 안에 끝나지 않았어요. 잠시 뒤 다시 시도하거나 기본 보상을 받아주세요.",
   "offlineSales.adNoFill":
     "지금은 볼 수 있는 광고가 없어요. 기본 보상은 바로 받을 수 있어요.",
   "offlineSales.adUnsupported":

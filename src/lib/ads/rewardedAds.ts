@@ -17,6 +17,7 @@ export type RewardedAdStatus =
   | "rewarded"
   | "cancelled"
   | "error"
+  | "timeout"
   | "no_fill"
   | "unsupported";
 
@@ -25,6 +26,11 @@ export type RewardedAdResult = {
   provider: RewardedAdProvider;
   status: RewardedAdStatus;
   details?: string;
+};
+
+export type RewardedAdAttemptSnapshot = RewardedAdResult & {
+  requestedAtMs: number;
+  finishedAtMs: number;
 };
 
 export interface RewardedAdAdapter {
@@ -127,6 +133,10 @@ export const REWARDED_AD_GPT_OFFLINE_AD_UNIT_PATH_OVERRIDE_STORAGE_KEY =
   "coffee2048_rewarded_gpt_offline_ad_unit_path" as const;
 export const REWARDED_AD_GPT_PUZZLE_AD_UNIT_PATH_OVERRIDE_STORAGE_KEY =
   "coffee2048_rewarded_gpt_puzzle_ad_unit_path" as const;
+export const REWARDED_AD_LAST_RESULT_STORAGE_KEY =
+  "coffee2048_rewarded_ad_last_result" as const;
+
+const REWARDED_AD_RESULT_EVENT_NAME = "coffee2048:rewarded-ad-result";
 
 const DEFAULT_GPT_SCRIPT_URL =
   "https://securepubads.g.doubleclick.net/tag/js/gpt.js";
@@ -146,6 +156,7 @@ function readMockOutcome(): RewardedAdMockBehavior {
   const raw = window.localStorage.getItem(REWARDED_AD_MOCK_OUTCOME_STORAGE_KEY);
   return raw === "cancel" ||
     raw === "error" ||
+    raw === "timeout" ||
     raw === "no_fill" ||
     raw === "unsupported"
     ? raw
@@ -337,6 +348,23 @@ function ensureGoogletagServicesEnabled(googletag: GoogletagApi) {
   gptServicesEnabled = true;
 }
 
+function recordRewardedAdAttempt(snapshot: RewardedAdAttemptSnapshot) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      REWARDED_AD_LAST_RESULT_STORAGE_KEY,
+      JSON.stringify(snapshot),
+    );
+    window.dispatchEvent(
+      new CustomEvent<RewardedAdAttemptSnapshot>(REWARDED_AD_RESULT_EVENT_NAME, {
+        detail: snapshot,
+      }),
+    );
+  } catch {
+    // Diagnostics should never block the rewarded flow.
+  }
+}
+
 class MockRewardedAdAdapter implements RewardedAdAdapter {
   async requestRewardedAd(
     placement: RewardedAdPlacement,
@@ -348,6 +376,9 @@ class MockRewardedAdAdapter implements RewardedAdAdapter {
     }
     if (outcome === "error") {
       return { placement, provider: "mock", status: "error" };
+    }
+    if (outcome === "timeout") {
+      return { placement, provider: "mock", status: "timeout" };
     }
     if (outcome === "no_fill") {
       return { placement, provider: "mock", status: "no_fill" };
@@ -395,12 +426,16 @@ class WebGptRewardedAdAdapter implements RewardedAdAdapter {
         this.config.requestTimeoutMs,
       );
     } catch (error) {
+      const details =
+        error instanceof Error ? error.message : "failed to load GPT runtime";
       return {
         placement,
         provider: "web-gpt-rewarded",
-        status: "error",
-        details:
-          error instanceof Error ? error.message : "failed to load GPT runtime",
+        status:
+          typeof details === "string" && /timed out/i.test(details)
+            ? "timeout"
+            : "error",
+        details,
       };
     }
 
@@ -431,7 +466,7 @@ class WebGptRewardedAdAdapter implements RewardedAdAdapter {
           finalize({
             placement,
             provider: "web-gpt-rewarded",
-            status: "error",
+            status: "timeout",
             details: "rewarded slot timed out before completion",
           });
         }, this.config.requestTimeoutMs);
@@ -537,7 +572,36 @@ export function requestRewardedAd(
   placement: RewardedAdPlacement,
 ): Promise<RewardedAdResult> {
   const config = readRuntimeConfig();
-  return createRewardedAdAdapter(config).requestRewardedAd(placement);
+  const requestedAtMs = Date.now();
+  return createRewardedAdAdapter(config)
+    .requestRewardedAd(placement)
+    .then((result) => {
+      recordRewardedAdAttempt({
+        ...result,
+        requestedAtMs,
+        finishedAtMs: Date.now(),
+      });
+      return result;
+    })
+    .catch((error) => {
+      const fallbackResult: RewardedAdResult = {
+        placement,
+        provider: config.resolvedProviderMode === "web-gpt-rewarded"
+          ? "web-gpt-rewarded"
+          : config.resolvedProviderMode === "mock"
+            ? "mock"
+            : "unsupported",
+        status: "error",
+        details:
+          error instanceof Error ? error.message : "unexpected rewarded ad error",
+      };
+      recordRewardedAdAttempt({
+        ...fallbackResult,
+        requestedAtMs,
+        finishedAtMs: Date.now(),
+      });
+      return fallbackResult;
+    });
 }
 
 export function getRewardedAdMockBehavior(): RewardedAdMockBehavior {
@@ -570,4 +634,51 @@ export function setRewardedAdProviderModeOverride(
 
 export function getRewardedAdRuntimeDebugInfo() {
   return readRuntimeConfig();
+}
+
+export function getLastRewardedAdAttempt():
+  | RewardedAdAttemptSnapshot
+  | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(REWARDED_AD_LAST_RESULT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<RewardedAdAttemptSnapshot>;
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      typeof parsed.placement !== "string" ||
+      typeof parsed.provider !== "string" ||
+      typeof parsed.status !== "string"
+    ) {
+      return null;
+    }
+    return {
+      placement: parsed.placement as RewardedAdPlacement,
+      provider: parsed.provider as RewardedAdProvider,
+      status: parsed.status as RewardedAdStatus,
+      details: typeof parsed.details === "string" ? parsed.details : undefined,
+      requestedAtMs:
+        typeof parsed.requestedAtMs === "number" ? parsed.requestedAtMs : 0,
+      finishedAtMs:
+        typeof parsed.finishedAtMs === "number" ? parsed.finishedAtMs : 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function subscribeRewardedAdAttemptResults(
+  listener: (snapshot: RewardedAdAttemptSnapshot) => void,
+) {
+  if (typeof window === "undefined") return () => {};
+  const handleEvent = (event: Event) => {
+    const detail = (event as CustomEvent<RewardedAdAttemptSnapshot>).detail;
+    if (!detail) return;
+    listener(detail);
+  };
+  window.addEventListener(REWARDED_AD_RESULT_EVENT_NAME, handleEvent);
+  return () => {
+    window.removeEventListener(REWARDED_AD_RESULT_EVENT_NAME, handleEvent);
+  };
 }

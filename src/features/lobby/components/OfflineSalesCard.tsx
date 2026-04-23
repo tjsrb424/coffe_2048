@@ -23,6 +23,10 @@ function formatOfflineDuration(elapsedMs: number): string {
   return `${hours}시간 ${minutes}분`;
 }
 
+function rewardedAdStatusLabel(result: RewardedAdResult): string {
+  return `${result.provider}:${result.status}`;
+}
+
 export function OfflineSalesCard({ className }: { className?: string }) {
   const pendingReward = useAppStore((s) => s.cafeState.pendingOfflineReward);
   const claimOfflineReward = useAppStore((s) => s.claimOfflineReward);
@@ -54,14 +58,16 @@ export function OfflineSalesCard({ className }: { className?: string }) {
   const noticeForResult = (result: RewardedAdResult): string => {
     switch (result.status) {
       case "cancelled":
-        return t("offlineSales.adCancelled");
+        return `${t("offlineSales.adCancelled")} (${rewardedAdStatusLabel(result)})`;
+      case "timeout":
+        return `${t("offlineSales.adTimeout")} (${rewardedAdStatusLabel(result)})`;
       case "no_fill":
-        return t("offlineSales.adNoFill");
+        return `${t("offlineSales.adNoFill")} (${rewardedAdStatusLabel(result)})`;
       case "unsupported":
-        return t("offlineSales.adUnsupported");
+        return `${t("offlineSales.adUnsupported")} (${rewardedAdStatusLabel(result)})`;
       case "error":
       default:
-        return t("offlineSales.adUnavailable");
+        return `${t("offlineSales.adUnavailable")} (${rewardedAdStatusLabel(result)})`;
     }
   };
 

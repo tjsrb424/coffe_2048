@@ -1,6 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 import { computePuzzleRewards } from "../../src/features/meta/rewards/computePuzzleRewards";
-import { REWARDED_AD_MOCK_OUTCOME_STORAGE_KEY } from "../../src/lib/ads/rewardedAds";
+import {
+  REWARDED_AD_LAST_RESULT_STORAGE_KEY,
+  REWARDED_AD_MOCK_OUTCOME_STORAGE_KEY,
+  REWARDED_AD_PROVIDER_OVERRIDE_STORAGE_KEY,
+} from "../../src/lib/ads/rewardedAds";
 import { buildDebugSaveBundle, exportDebugSaveBundle, importDebugSaveBundle, installFixedClock } from "./ownershipTestUtils";
 import type { DebugSaveBundle } from "./ownershipTestUtils";
 
@@ -8,10 +12,17 @@ const FIXED_TIME = "2026-04-23T14:00:00";
 
 async function setMockAdOutcome(page: Page, outcome: "success" | "cancel" | "error") {
   await page.evaluate(
-    ([storageKey, nextOutcome]) => {
-      window.localStorage.setItem(storageKey, nextOutcome);
+    ([outcomeStorageKey, providerStorageKey, lastResultStorageKey, nextOutcome]) => {
+      window.localStorage.setItem(providerStorageKey, "mock");
+      window.localStorage.removeItem(lastResultStorageKey);
+      window.localStorage.setItem(outcomeStorageKey, nextOutcome);
     },
-    [REWARDED_AD_MOCK_OUTCOME_STORAGE_KEY, outcome] as const,
+    [
+      REWARDED_AD_MOCK_OUTCOME_STORAGE_KEY,
+      REWARDED_AD_PROVIDER_OVERRIDE_STORAGE_KEY,
+      REWARDED_AD_LAST_RESULT_STORAGE_KEY,
+      outcome,
+    ] as const,
   );
 }
 

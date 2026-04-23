@@ -309,6 +309,7 @@ export type RewardedAdMockBehavior =
   | "success"
   | "cancel"
   | "error"
+  | "timeout"
   | "no_fill"
   | "unsupported";
 
