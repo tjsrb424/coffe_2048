@@ -233,6 +233,10 @@ web rewarded는 env만 맞는다고 동작하지 않는다.
   현재 page diagnostics, 현재 GPT 상태, 마지막 광고 시도의 structured debug를 바로 확인할 수 있다
 - `getRewardedAdAvailability()`는 이제 `last unsupported` 결과만으로 CTA를 영구 비활성화하지 않는다.
   config가 살아 있으면 재시도를 허용하고, 마지막 unsupported detail은 진단 힌트로만 남긴다
+- production 배포판에서는 풀 `DevDebugPanel`을 다시 열지 않고,
+  `?ad_debug=1`일 때만 `ReadOnlyAdDebugPanel`이 노출된다
+- 이 read-only 패널에서는 rewarded 진단만 볼 수 있고,
+  재화 수정 / 세이브 조작 / mock 결과 변경 / provider override는 노출되지 않는다
 
 필수 유지 조건:
 - 실패 상태에서 pending claim 삭제 금지

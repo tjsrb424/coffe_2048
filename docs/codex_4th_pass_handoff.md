@@ -80,6 +80,9 @@
 - `src/lib/ads/rewardedAds.ts`는 이제 `defineOutOfPageSlot(..., REWARDED)`가 `null`일 때 단순 heuristic 후보만 남기지 않고, 실제 호출 시점의 `path`, `top-level window`, `document.readyState`, `visibilityState`, `focus`, `GPT script tag`, `window.googletag`, `apiReady`, `pubadsReady`, rewarded enum, `slotReturnedNull`을 detail/debug에 함께 남긴다.
 - `getRewardedAdAvailability()`는 `last unsupported` 결과만으로 CTA를 영구 비활성화하지 않게 바꿨다. config가 살아 있으면 재시도를 허용하고, 마지막 unsupported는 진단 힌트로만 남긴다.
 - `src/components/dev/DevDebugPanel.tsx`에서는 현재 page diagnostics, 현재 GPT 상태, 마지막 광고 시도의 structured debug(`slotReturnedNull`, notes, request path/ad unit`)를 함께 볼 수 있다.
+- production 배포판에서는 풀 `DevDebugPanel`을 다시 열지 않고, `?ad_debug=1`일 때만 `ReadOnlyAdDebugPanel`이 뜨도록 분리했다.
+- `ReadOnlyAdDebugPanel`은 rewarded 진단값만 읽을 수 있는 read-only 패널이며, 현재 provider/resolved provider, 마지막 광고 시도 결과, `slotReturnedNull`, secure/mobile/touch, top-level, viewport meta, GPT 상태, request/slot 시점 진단만 보여준다.
+- 재화 수정 / 세이브 조작 / mock 결과 변경 / provider override는 배포판에서 노출하지 않는다.
 - page/GPT 상태가 정상인데도 모바일에서 계속 `slotReturnedNull=true`면, 코드/페이지보다는 GAM의 `Block non-instream video ads` 보호, rewarded ad unit/line item 연결, 실제 브라우저/웹뷰 지원 범위 쪽 근거가 더 강해진다.
 - `SessionResultModal`과 `OfflineSalesCard`는 같은 정책을 따른다. 즉 광고 가능 환경에서는 기존 x2 CTA를 유지하고, `unsupported` 환경에서는 짧은 안내 문구 + 비활성화 CTA로 정리한다.
 - 일반 유저용 notice에서는 `provider:status` 꼬리를 제거했고, 원인 식별은 `DevDebugPanel`의 마지막 광고 시도/세부 detail로 유지한다.
