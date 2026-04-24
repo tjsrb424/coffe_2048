@@ -242,6 +242,34 @@ export function ReadOnlyAdDebugPanel({ className }: { className?: string }) {
                     </span>
                   </div>
                   <div>
+                    scriptLoaded / bootstrapStarted / bootstrapCompleted:{" "}
+                    <span className="font-semibold">
+                      {formatMaybeBoolean(gptDiagnostics?.scriptLoaded)}
+                    </span>
+                    {" / "}
+                    <span className="font-semibold">
+                      {formatMaybeBoolean(gptDiagnostics?.bootstrapStarted)}
+                    </span>
+                    {" / "}
+                    <span className="font-semibold">
+                      {formatMaybeBoolean(gptDiagnostics?.bootstrapCompleted)}
+                    </span>
+                  </div>
+                  <div>
+                    services attempted / enabled / error:{" "}
+                    <span className="font-semibold">
+                      {formatMaybeBoolean(gptDiagnostics?.servicesEnableAttempted)}
+                    </span>
+                    {" / "}
+                    <span className="font-semibold">
+                      {formatMaybeBoolean(gptDiagnostics?.servicesEnabledByApp)}
+                    </span>
+                    {" / "}
+                    <span className="font-mono">
+                      {gptDiagnostics?.servicesEnableError ?? "(none)"}
+                    </span>
+                  </div>
+                  <div>
                     script append / target / reuse:{" "}
                     <span className="font-semibold">
                       {formatMaybeBoolean(gptDiagnostics?.scriptAppendAttempted)}
@@ -287,6 +315,16 @@ export function ReadOnlyAdDebugPanel({ className }: { className?: string }) {
                     {" / "}
                     <span className="font-semibold">
                       {formatMaybeBoolean(gptDiagnostics?.cspSuspected)}
+                    </span>
+                  </div>
+                  <div>
+                    bootstrap outcome / timeout ms:{" "}
+                    <span className="font-semibold">
+                      {gptDiagnostics?.bootstrapClassification ?? "unknown"}
+                    </span>
+                    {" / "}
+                    <span className="font-semibold">
+                      {formatMaybeText(gptDiagnostics?.bootstrapTimeoutMs)}
                     </span>
                   </div>
                   {gptDiagnostics?.scriptLoadClassification ? (
@@ -338,6 +376,16 @@ export function ReadOnlyAdDebugPanel({ className }: { className?: string }) {
                       slotReturnedNull:{" "}
                       <span className="font-semibold">
                         {formatMaybeBoolean(lastDebug?.slotReturnedNull)}
+                      </span>
+                    </div>
+                    <div>
+                      failure stage / slotAttempted:{" "}
+                      <span className="font-semibold">
+                        {lastDebug?.failureStage ?? "(none)"}
+                      </span>
+                      {" / "}
+                      <span className="font-semibold">
+                        {formatMaybeBoolean(lastDebug?.slotAttempted)}
                       </span>
                     </div>
                     <div>
@@ -435,6 +483,30 @@ export function ReadOnlyAdDebugPanel({ className }: { className?: string }) {
                       </span>
                     </div>
                     <div>
+                      load scriptLoaded / bootstrapStarted / bootstrapCompleted:{" "}
+                      <span className="font-semibold">
+                        {formatMaybeBoolean(lastLoadDiagnostics?.scriptLoaded)}
+                      </span>
+                      {" / "}
+                      <span className="font-semibold">
+                        {formatMaybeBoolean(lastLoadDiagnostics?.bootstrapStarted)}
+                      </span>
+                      {" / "}
+                      <span className="font-semibold">
+                        {formatMaybeBoolean(lastLoadDiagnostics?.bootstrapCompleted)}
+                      </span>
+                    </div>
+                    <div>
+                      load services attempted / enabled:{" "}
+                      <span className="font-semibold">
+                        {formatMaybeBoolean(lastLoadDiagnostics?.servicesEnableAttempted)}
+                      </span>
+                      {" / "}
+                      <span className="font-semibold">
+                        {formatMaybeBoolean(lastLoadDiagnostics?.servicesEnabledByApp)}
+                      </span>
+                    </div>
+                    <div>
                       load src / found after append:{" "}
                       <span className="break-all font-mono">
                         {lastLoadDiagnostics?.scriptElementSrc ??
@@ -468,6 +540,16 @@ export function ReadOnlyAdDebugPanel({ className }: { className?: string }) {
                       {" / "}
                       <span className="font-semibold">
                         {formatMaybeBoolean(lastLoadDiagnostics?.cspSuspected)}
+                      </span>
+                    </div>
+                    <div>
+                      load bootstrap outcome / timeout ms:{" "}
+                      <span className="font-semibold">
+                        {lastLoadDiagnostics?.bootstrapClassification ?? "unknown"}
+                      </span>
+                      {" / "}
+                      <span className="font-semibold">
+                        {formatMaybeText(lastLoadDiagnostics?.bootstrapTimeoutMs)}
                       </span>
                     </div>
                     {lastLoadDiagnostics?.scriptLoadClassification ? (

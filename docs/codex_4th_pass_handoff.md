@@ -84,7 +84,8 @@
 - `ReadOnlyAdDebugPanel`은 rewarded 진단값만 읽을 수 있는 read-only 패널이며, 현재 provider/resolved provider, 마지막 광고 시도 결과, `slotReturnedNull`, secure/mobile/touch, top-level, viewport meta, GPT 상태, request/slot 시점 진단만 보여준다.
 - 재화 수정 / 세이브 조작 / mock 결과 변경 / provider override는 배포판에서 노출하지 않는다.
 - 최신 패스에서는 `gpt.js` 로더 진단도 강화했다. 이제 script append/reuse, append target, DOM tag 존재, `onload`/`onerror`/`timeout`, script src, timeout ms, CSP hint를 structured debug로 남긴다.
-- `web-gpt-rewarded:timeout`이 나면 inventory/no_fill 이전에 `gpt.js` 부트 자체가 막혔는지 확인할 수 있고, `script appended but no load events`와 `CSP suspected`를 구분할 근거가 늘었다.
+- 이번 기준으로 timeout 진단은 `script load -> GPT bootstrap/services init -> rewarded slot creation` 3단계로 분리된다.
+- `web-gpt-rewarded:timeout`이 나면 이제 `scriptLoaded`, `bootstrapStarted`, `bootstrapCompleted`, `servicesEnableAttempted`, `servicesEnabledByApp`, `slotAttempted`, `slotReturnedNull`로 실제 정지 지점을 더 직접적으로 확인할 수 있다.
 - 안정화용으로 `preloadRewardedAdRuntime()`를 추가했고, 현재는 `PuzzleScreen`과 `OfflineSalesCard` surface mount 시점에서만 얇게 preload한다.
 - page/GPT 상태가 정상인데도 모바일에서 계속 `slotReturnedNull=true`면, 코드/페이지보다는 GAM의 `Block non-instream video ads` 보호, rewarded ad unit/line item 연결, 실제 브라우저/웹뷰 지원 범위 쪽 근거가 더 강해진다.
 - `SessionResultModal`과 `OfflineSalesCard`는 같은 정책을 따른다. 즉 광고 가능 환경에서는 기존 x2 CTA를 유지하고, `unsupported` 환경에서는 짧은 안내 문구 + 비활성화 CTA로 정리한다.

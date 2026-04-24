@@ -75,6 +75,7 @@ export type RewardedAdGptDiagnostics = {
   scriptUrl: string;
   matchingScriptTagCount: number;
   matchingScriptPresent: boolean;
+  scriptLoaded: boolean | null;
   scriptAppendAttempted: boolean;
   scriptAppendTarget: "head" | "body" | "none";
   existingScriptFound: boolean;
@@ -87,6 +88,13 @@ export type RewardedAdGptDiagnostics = {
   scriptTimeoutMs: number | null;
   scriptLoadOutcome: "idle" | "loading" | "loaded" | "error" | "timeout";
   scriptLoadClassification: string | null;
+  bootstrapStarted: boolean;
+  bootstrapCompleted: boolean;
+  bootstrapTimeoutFired: boolean;
+  bootstrapTimeoutMs: number | null;
+  bootstrapClassification: string | null;
+  servicesEnableAttempted: boolean;
+  servicesEnableError: string | null;
   cspSuspected: boolean | null;
   cspViolationDirective: string | null;
   cspViolationBlockedUri: string | null;
@@ -117,7 +125,9 @@ export type RewardedAdDebugSnapshot = {
   gptAfterLoad?: RewardedAdGptDiagnostics | null;
   gptAtSlotAttempt?: RewardedAdGptDiagnostics | null;
   slotFormatRequested?: string | null;
+  slotAttempted?: boolean;
   slotReturnedNull?: boolean;
+  failureStage?: "script" | "bootstrap" | "services" | "slot" | null;
   notes?: string[];
 };
 
@@ -136,6 +146,7 @@ type RewardedAdRuntimeConfig = {
 
 type RewardedAdGptScriptLoadState = Pick<
   RewardedAdGptDiagnostics,
+  | "scriptLoaded"
   | "scriptUrl"
   | "scriptAppendAttempted"
   | "scriptAppendTarget"
@@ -152,6 +163,19 @@ type RewardedAdGptScriptLoadState = Pick<
   | "cspSuspected"
   | "cspViolationDirective"
   | "cspViolationBlockedUri"
+>;
+
+type RewardedAdGptBootstrapState = Pick<
+  RewardedAdGptDiagnostics,
+  | "scriptUrl"
+  | "bootstrapStarted"
+  | "bootstrapCompleted"
+  | "bootstrapTimeoutFired"
+  | "bootstrapTimeoutMs"
+  | "bootstrapClassification"
+  | "servicesEnableAttempted"
+  | "servicesEnabledByApp"
+  | "servicesEnableError"
 >;
 
 type GoogletagSlot = {
@@ -250,9 +274,11 @@ const DEFAULT_GPT_SCRIPT_URL =
   "https://securepubads.g.doubleclick.net/tag/js/gpt.js";
 const DEFAULT_REQUEST_TIMEOUT_MS = 8_000;
 
-let gptLoadPromise: Promise<GoogletagApi> | null = null;
+let gptScriptLoadPromise: Promise<void> | null = null;
+let gptBootstrapPromise: Promise<GoogletagApi> | null = null;
 let gptServicesEnabled = false;
 let gptScriptLoadState: RewardedAdGptScriptLoadState | null = null;
+let gptBootstrapState: RewardedAdGptBootstrapState | null = null;
 let rewardedAdSecurityPolicyListenerAttached = false;
 const gptHintedOrigins = new Set<string>();
 
@@ -362,6 +388,7 @@ function createDefaultGptScriptLoadState(
 ): RewardedAdGptScriptLoadState {
   return {
     scriptUrl,
+    scriptLoaded: null,
     scriptAppendAttempted: false,
     scriptAppendTarget: "none",
     existingScriptFound: false,
@@ -380,12 +407,37 @@ function createDefaultGptScriptLoadState(
   };
 }
 
+function createDefaultGptBootstrapState(
+  scriptUrl: string,
+  timeoutMs: number | null = null,
+): RewardedAdGptBootstrapState {
+  return {
+    scriptUrl,
+    bootstrapStarted: false,
+    bootstrapCompleted: false,
+    bootstrapTimeoutFired: false,
+    bootstrapTimeoutMs: timeoutMs,
+    bootstrapClassification: null,
+    servicesEnableAttempted: false,
+    servicesEnabledByApp: false,
+    servicesEnableError: null,
+  };
+}
+
 function getGptScriptLoadStateSnapshot(
   scriptUrl: string,
 ): RewardedAdGptScriptLoadState {
   return gptScriptLoadState?.scriptUrl === scriptUrl
     ? gptScriptLoadState
     : createDefaultGptScriptLoadState(scriptUrl);
+}
+
+function getGptBootstrapStateSnapshot(
+  scriptUrl: string,
+): RewardedAdGptBootstrapState {
+  return gptBootstrapState?.scriptUrl === scriptUrl
+    ? gptBootstrapState
+    : createDefaultGptBootstrapState(scriptUrl);
 }
 
 function updateGptScriptLoadState(
@@ -400,6 +452,23 @@ function updateGptScriptLoadState(
   gptScriptLoadState = {
     ...current,
     scriptTimeoutMs: timeoutMs ?? current.scriptTimeoutMs,
+    ...patch,
+  };
+}
+
+function updateGptBootstrapState(
+  scriptUrl: string,
+  timeoutMs: number | null,
+  patch: Partial<RewardedAdGptBootstrapState>,
+) {
+  const current =
+    gptBootstrapState?.scriptUrl === scriptUrl
+      ? gptBootstrapState
+      : createDefaultGptBootstrapState(scriptUrl, timeoutMs);
+  gptBootstrapState = {
+    ...current,
+    bootstrapTimeoutMs: timeoutMs ?? current.bootstrapTimeoutMs,
+    servicesEnabledByApp: gptServicesEnabled,
     ...patch,
   };
 }
@@ -650,11 +719,15 @@ function getRewardedAdGptDiagnostics(
     `script[src="${scriptUrl}"]`,
   ).length;
   const scriptLoadState = getGptScriptLoadStateSnapshot(scriptUrl);
+  const bootstrapState = getGptBootstrapStateSnapshot(scriptUrl);
 
   return {
     scriptUrl,
     matchingScriptTagCount,
     matchingScriptPresent: matchingScriptTagCount > 0,
+    scriptLoaded:
+      scriptLoadState.scriptLoaded ??
+      (googletag?.apiReady === true ? true : null),
     scriptAppendAttempted: scriptLoadState.scriptAppendAttempted,
     scriptAppendTarget: scriptLoadState.scriptAppendTarget,
     existingScriptFound: scriptLoadState.existingScriptFound,
@@ -667,6 +740,15 @@ function getRewardedAdGptDiagnostics(
     scriptTimeoutMs: scriptLoadState.scriptTimeoutMs,
     scriptLoadOutcome: scriptLoadState.scriptLoadOutcome,
     scriptLoadClassification: scriptLoadState.scriptLoadClassification,
+    bootstrapStarted:
+      bootstrapState.bootstrapStarted || isGoogletagBootstrapReady(googletag),
+    bootstrapCompleted:
+      bootstrapState.bootstrapCompleted || isGoogletagBootstrapReady(googletag),
+    bootstrapTimeoutFired: bootstrapState.bootstrapTimeoutFired,
+    bootstrapTimeoutMs: bootstrapState.bootstrapTimeoutMs,
+    bootstrapClassification: bootstrapState.bootstrapClassification,
+    servicesEnableAttempted: bootstrapState.servicesEnableAttempted,
+    servicesEnableError: bootstrapState.servicesEnableError,
     cspSuspected: scriptLoadState.cspSuspected,
     cspViolationDirective: scriptLoadState.cspViolationDirective,
     cspViolationBlockedUri: scriptLoadState.cspViolationBlockedUri,
@@ -686,7 +768,7 @@ function getRewardedAdGptDiagnostics(
     hasDestroySlots: typeof googletag?.destroySlots === "function",
     rewardedEnumAvailable: !!googletag?.enums?.OutOfPageFormat?.REWARDED,
     rewardedEnumValue: googletag?.enums?.OutOfPageFormat?.REWARDED ?? null,
-    servicesEnabledByApp: gptServicesEnabled,
+    servicesEnabledByApp: bootstrapState.servicesEnabledByApp || gptServicesEnabled,
   };
 }
 
@@ -729,6 +811,7 @@ function formatRewardedAdGptDiagnostics(
   return [
     `scriptPresent=${diagnostics.matchingScriptPresent}`,
     `scriptCount=${diagnostics.matchingScriptTagCount}`,
+    `scriptLoaded=${diagnostics.scriptLoaded}`,
     `scriptAppendAttempted=${diagnostics.scriptAppendAttempted}`,
     `scriptAppendTarget=${diagnostics.scriptAppendTarget}`,
     `existingScriptFound=${diagnostics.existingScriptFound}`,
@@ -741,6 +824,13 @@ function formatRewardedAdGptDiagnostics(
     `scriptTimeoutMs=${diagnostics.scriptTimeoutMs ?? "n/a"}`,
     `scriptLoadOutcome=${diagnostics.scriptLoadOutcome}`,
     `scriptLoadClassification=${diagnostics.scriptLoadClassification ?? "unknown"}`,
+    `bootstrapStarted=${diagnostics.bootstrapStarted}`,
+    `bootstrapCompleted=${diagnostics.bootstrapCompleted}`,
+    `bootstrapTimeout=${diagnostics.bootstrapTimeoutFired}`,
+    `bootstrapTimeoutMs=${diagnostics.bootstrapTimeoutMs ?? "n/a"}`,
+    `bootstrapClassification=${diagnostics.bootstrapClassification ?? "unknown"}`,
+    `servicesEnableAttempted=${diagnostics.servicesEnableAttempted}`,
+    `servicesEnableError=${diagnostics.servicesEnableError ?? "none"}`,
     `cspSuspected=${diagnostics.cspSuspected}`,
     diagnostics.cspViolationDirective || diagnostics.cspViolationBlockedUri
       ? `cspViolation=${
@@ -759,14 +849,22 @@ function formatRewardedAdGptDiagnostics(
     .join("; ");
 }
 
-function buildGptLoadFailureDetail(
+function buildGptStageFailureDetail(
+  stage: "script" | "bootstrap" | "services",
   message: string,
   debug: RewardedAdDebugSnapshot,
 ): string {
   const gptDiagnostics = debug.gptAfterLoad ?? debug.gptBeforeLoad;
   const notes = [...(debug.notes ?? [])];
+  notes.push(`failureStage=${stage}`);
   if (gptDiagnostics?.scriptLoadClassification) {
     notes.push(`scriptLoad=${gptDiagnostics.scriptLoadClassification}`);
+  }
+  if (gptDiagnostics?.bootstrapClassification) {
+    notes.push(`bootstrap=${gptDiagnostics.bootstrapClassification}`);
+  }
+  if (gptDiagnostics?.servicesEnableError) {
+    notes.push(`servicesError=${gptDiagnostics.servicesEnableError}`);
   }
   if (gptDiagnostics?.cspSuspected) {
     notes.push(
@@ -845,16 +943,29 @@ function getWindowGoogletag():
     .googletag;
 }
 
-function isGoogletagReady(
+function isGoogletagBootstrapReady(
   value: Partial<GoogletagApi> | undefined,
 ): value is GoogletagApi {
   return !!value &&
     Array.isArray(value.cmd) &&
+    value.apiReady === true &&
     typeof value.pubads === "function" &&
     typeof value.defineOutOfPageSlot === "function" &&
     typeof value.enableServices === "function" &&
     typeof value.display === "function" &&
     !!value.enums?.OutOfPageFormat?.REWARDED;
+}
+
+function isGoogletagScriptLoaded(
+  value: Partial<GoogletagApi> | undefined,
+  scriptUrl: string,
+) {
+  const scriptLoadState = getGptScriptLoadStateSnapshot(scriptUrl);
+  return (
+    value?.apiReady === true ||
+    scriptLoadState.scriptOnloadFired ||
+    scriptLoadState.scriptLoadOutcome === "loaded"
+  );
 }
 
 function ensureWindowGoogletagShell() {
@@ -866,10 +977,10 @@ function ensureWindowGoogletagShell() {
   };
 }
 
-async function ensureGoogletagLoaded(
+async function ensureGoogletagScriptLoaded(
   scriptUrl: string,
   timeoutMs: number,
-): Promise<GoogletagApi> {
+): Promise<void> {
   if (typeof window === "undefined" || typeof document === "undefined") {
     throw new Error("rewarded ads require a browser environment");
   }
@@ -877,25 +988,27 @@ async function ensureGoogletagLoaded(
   ensureGptConnectionHints(scriptUrl);
 
   const current = getWindowGoogletag();
-  if (isGoogletagReady(current)) {
+  if (isGoogletagScriptLoaded(current, scriptUrl)) {
     const existingReadyScript = document.querySelector(
       `script[src="${scriptUrl}"]`,
     ) as HTMLScriptElement | null;
     updateGptScriptLoadState(scriptUrl, timeoutMs, {
+      scriptLoaded: true,
       existingScriptFound: !!existingReadyScript,
       existingScriptReused: !!existingReadyScript,
       scriptElementSrc: existingReadyScript?.src ?? scriptUrl,
       scriptLoadOutcome: "loaded",
-      scriptLoadClassification: "existing_script_ready",
+      scriptLoadClassification:
+        current?.apiReady === true ? "script_loaded_via_api_ready" : "script_loaded",
       cspSuspected: false,
     });
-    return current;
+    return;
   }
-  if (gptLoadPromise) return gptLoadPromise;
+  if (gptScriptLoadPromise) return gptScriptLoadPromise;
 
   ensureWindowGoogletagShell();
 
-  gptLoadPromise = new Promise<GoogletagApi>((resolve, reject) => {
+  gptScriptLoadPromise = new Promise<void>((resolve, reject) => {
     let settled = false;
     const existingScript = document.querySelector(
       `script[src="${scriptUrl}"]`,
@@ -910,6 +1023,7 @@ async function ensureGoogletagLoaded(
           : "none";
 
     updateGptScriptLoadState(scriptUrl, timeoutMs, {
+      scriptLoaded: false,
       scriptAppendAttempted: !existingScript,
       scriptAppendTarget: appendTarget,
       existingScriptFound: !!existingScript,
@@ -951,36 +1065,42 @@ async function ensureGoogletagLoaded(
 
     const finalizeError = (error: Error) => {
       cleanup();
-      gptLoadPromise = null;
+      gptScriptLoadPromise = null;
       reject(error);
     };
 
     const finish = () => {
       if (settled) return;
       const next = getWindowGoogletag();
-      if (!isGoogletagReady(next)) return;
+      if (!isGoogletagScriptLoaded(next, scriptUrl)) return;
       settled = true;
       updateGptScriptLoadState(scriptUrl, timeoutMs, {
+        scriptLoaded: true,
         scriptLoadOutcome: "loaded",
-        scriptLoadClassification: existingScript
-          ? "existing_script_ready"
-          : script.src === scriptUrl || script.src.endsWith("/gpt.js")
-            ? "script_loaded"
-            : "script_loaded_unknown_src",
+        scriptLoadClassification:
+          next?.apiReady === true
+            ? "script_loaded_via_api_ready"
+            : existingScript
+              ? "existing_script_onload_fired"
+              : "script_onload_fired",
         cspSuspected: false,
       });
       cleanup();
-      resolve(next);
+      resolve();
     };
 
     const onLoad = () => {
       updateGptScriptLoadState(scriptUrl, timeoutMs, {
+        scriptLoaded: true,
         scriptOnloadFired: true,
         scriptElementSrc: script.src || scriptUrl,
         scriptLoadOutcome: "loaded",
-        scriptLoadClassification: existingScript
-          ? "existing_script_onload_fired"
-          : "script_onload_fired",
+        scriptLoadClassification:
+          getWindowGoogletag()?.apiReady === true
+            ? "script_loaded_via_api_ready"
+            : existingScript
+              ? "existing_script_onload_fired"
+              : "script_onload_fired",
         cspSuspected: false,
       });
       finish();
@@ -988,6 +1108,7 @@ async function ensureGoogletagLoaded(
 
     const onError = () => {
       updateGptScriptLoadState(scriptUrl, timeoutMs, {
+        scriptLoaded: false,
         scriptOnerrorFired: true,
         scriptElementSrc: script.src || scriptUrl,
         scriptLoadOutcome: "error",
@@ -1000,6 +1121,7 @@ async function ensureGoogletagLoaded(
     pollId = window.setInterval(finish, 50);
     timeoutId = window.setTimeout(() => {
       updateGptScriptLoadState(scriptUrl, timeoutMs, {
+        scriptLoaded: false,
         scriptTimeoutFired: true,
         scriptLoadOutcome: "timeout",
         scriptLoadClassification: timeoutClassification(),
@@ -1032,13 +1154,129 @@ async function ensureGoogletagLoaded(
     finish();
   });
 
-  return gptLoadPromise;
+  return gptScriptLoadPromise;
 }
 
-function ensureGoogletagServicesEnabled(googletag: GoogletagApi) {
+function getBootstrapTimeoutClassification(
+  googletag: Partial<GoogletagApi> | undefined,
+) {
+  if (!googletag) return "bootstrap_missing_googletag";
+  if (googletag.apiReady !== true) return "bootstrap_api_not_ready";
+  if (!Array.isArray(googletag.cmd)) return "bootstrap_cmd_missing";
+  if (!googletag.enums?.OutOfPageFormat?.REWARDED) {
+    return "bootstrap_rewarded_enum_missing";
+  }
+  if (typeof googletag.pubads !== "function") return "bootstrap_pubads_missing";
+  if (typeof googletag.enableServices !== "function") {
+    return "bootstrap_enable_services_missing";
+  }
+  if (typeof googletag.defineOutOfPageSlot !== "function") {
+    return "bootstrap_define_slot_missing";
+  }
+  if (typeof googletag.display !== "function") return "bootstrap_display_missing";
+  return "bootstrap_timed_out";
+}
+
+async function ensureGoogletagBootstrapped(
+  scriptUrl: string,
+  timeoutMs: number,
+): Promise<GoogletagApi> {
+  await ensureGoogletagScriptLoaded(scriptUrl, timeoutMs);
+  const current = getWindowGoogletag();
+  if (isGoogletagBootstrapReady(current)) {
+    updateGptBootstrapState(scriptUrl, timeoutMs, {
+      bootstrapStarted: true,
+      bootstrapCompleted: true,
+      bootstrapTimeoutFired: false,
+      bootstrapClassification: "bootstrap_ready",
+      servicesEnabledByApp: gptServicesEnabled,
+    });
+    return current;
+  }
+  if (gptBootstrapPromise) return gptBootstrapPromise;
+
+  updateGptBootstrapState(scriptUrl, timeoutMs, {
+    bootstrapStarted: true,
+    bootstrapCompleted: false,
+    bootstrapTimeoutFired: false,
+    bootstrapClassification: "bootstrap_waiting_for_api_surface",
+    servicesEnabledByApp: gptServicesEnabled,
+  });
+
+  gptBootstrapPromise = new Promise<GoogletagApi>((resolve, reject) => {
+    let settled = false;
+    let pollId = 0;
+    let timeoutId = 0;
+
+    const cleanup = () => {
+      window.clearInterval(pollId);
+      window.clearTimeout(timeoutId);
+    };
+
+    const finalizeError = (error: Error) => {
+      cleanup();
+      gptBootstrapPromise = null;
+      reject(error);
+    };
+
+    const finish = () => {
+      if (settled) return;
+      const next = getWindowGoogletag();
+      if (!isGoogletagBootstrapReady(next)) return;
+      settled = true;
+      updateGptBootstrapState(scriptUrl, timeoutMs, {
+        bootstrapStarted: true,
+        bootstrapCompleted: true,
+        bootstrapTimeoutFired: false,
+        bootstrapClassification: "bootstrap_ready",
+        servicesEnabledByApp: gptServicesEnabled,
+      });
+      cleanup();
+      resolve(next);
+    };
+
+    pollId = window.setInterval(finish, 50);
+    timeoutId = window.setTimeout(() => {
+      const next = getWindowGoogletag();
+      updateGptBootstrapState(scriptUrl, timeoutMs, {
+        bootstrapStarted: true,
+        bootstrapCompleted: false,
+        bootstrapTimeoutFired: true,
+        bootstrapClassification: getBootstrapTimeoutClassification(next),
+        servicesEnabledByApp: gptServicesEnabled,
+      });
+      finalizeError(new Error("GPT bootstrap timed out"));
+    }, timeoutMs);
+
+    finish();
+  });
+
+  return gptBootstrapPromise;
+}
+
+function ensureGoogletagServicesEnabled(googletag: GoogletagApi, scriptUrl: string) {
+  updateGptBootstrapState(scriptUrl, null, {
+    servicesEnableAttempted: true,
+    servicesEnabledByApp: gptServicesEnabled,
+  });
   if (gptServicesEnabled) return;
-  googletag.enableServices();
-  gptServicesEnabled = true;
+  try {
+    googletag.enableServices();
+    gptServicesEnabled = true;
+    updateGptBootstrapState(scriptUrl, null, {
+      servicesEnableAttempted: true,
+      servicesEnabledByApp: true,
+      servicesEnableError: null,
+    });
+  } catch (error) {
+    updateGptBootstrapState(scriptUrl, null, {
+      servicesEnableAttempted: true,
+      servicesEnabledByApp: false,
+      servicesEnableError:
+        error instanceof Error ? error.message : "enableServices_failed",
+    });
+    throw error;
+  }
 }
 
 function recordRewardedAdAttempt(snapshot: RewardedAdAttemptSnapshot) {
@@ -1121,6 +1359,7 @@ class WebGptRewardedAdAdapter implements RewardedAdAdapter {
       adUnitPath: this.config.adUnitPaths[placement],
       pageAtRequest: getRewardedAdPageDiagnostics(),
       gptBeforeLoad: getRewardedAdGptDiagnostics(this.config.gptScriptUrl),
+      failureStage: null,
       notes: [],
     };
     const adUnitPath = this.config.adUnitPaths[placement];
@@ -1141,20 +1380,30 @@ class WebGptRewardedAdAdapter implements RewardedAdAdapter {
 
     let googletag: GoogletagApi;
     try {
-      googletag = await ensureGoogletagLoaded(
+      googletag = await ensureGoogletagBootstrapped(
         this.config.gptScriptUrl,
         this.config.requestTimeoutMs,
       );
     } catch (error) {
       const rawDetails =
         error instanceof Error ? error.message : "failed to load GPT runtime";
+      const gptAfterLoad = getRewardedAdGptDiagnostics(this.config.gptScriptUrl);
+      const failureStage: RewardedAdDebugSnapshot["failureStage"] =
+        /bootstrap/i.test(rawDetails) ||
+        gptAfterLoad?.bootstrapTimeoutFired ||
+        (gptAfterLoad?.bootstrapStarted === true &&
+          gptAfterLoad.bootstrapCompleted === false &&
+          gptAfterLoad.scriptLoaded === true)
+          ? "bootstrap"
+          : "script";
       const debug = {
         ...baseDebug,
-        gptAfterLoad: getRewardedAdGptDiagnostics(this.config.gptScriptUrl),
+        gptAfterLoad,
+        failureStage,
         notes: [
           ...(baseDebug.notes ?? []),
-          "gpt_load_failed",
-          `gpt_load_error=${rawDetails}`,
+          failureStage === "bootstrap" ? "gpt_bootstrap_failed" : "gpt_script_load_failed",
+          `gpt_stage_error=${rawDetails}`,
         ],
       };
       return {
@@ -1164,7 +1413,7 @@ class WebGptRewardedAdAdapter implements RewardedAdAdapter {
           typeof rawDetails === "string" && /timed out/i.test(rawDetails)
             ? "timeout"
             : "error",
-        details: buildGptLoadFailureDetail(rawDetails, debug),
+        details: buildGptStageFailureDetail(failureStage, rawDetails, debug),
         debug,
       };
     }
@@ -1177,6 +1426,8 @@ class WebGptRewardedAdAdapter implements RewardedAdAdapter {
           gptAtSlotAttempt: getRewardedAdGptDiagnostics(this.config.gptScriptUrl),
           pageAtSlotAttempt: getRewardedAdPageDiagnostics(),
           slotFormatRequested: googletag.enums.OutOfPageFormat.REWARDED ?? null,
+          slotAttempted: false,
+          failureStage: null,
           notes: [...(baseDebug.notes ?? [])],
         };
         const pubads = googletag.pubads();
@@ -1184,11 +1435,13 @@ class WebGptRewardedAdAdapter implements RewardedAdAdapter {
           adUnitPath,
           googletag.enums.OutOfPageFormat.REWARDED,
         );
+        debugAtSlotAttempt.slotAttempted = true;
 
         if (!slot) {
           const debug = {
             ...debugAtSlotAttempt,
             slotReturnedNull: true,
+            failureStage: "slot" as const,
             notes: [
               ...(debugAtSlotAttempt.notes ?? []),
               "slot_creation_returned_null",
@@ -1211,6 +1464,34 @@ class WebGptRewardedAdAdapter implements RewardedAdAdapter {
         slot.addService(pubads);
         slot.setTargeting?.("coffee2048_rewarded_placement", placement);
 
+        try {
+          ensureGoogletagServicesEnabled(googletag, this.config.gptScriptUrl);
+        } catch (error) {
+          const details =
+            error instanceof Error
+              ? error.message
+              : "rewarded services initialization failed";
+          const debug = {
+            ...debugAtSlotAttempt,
+            slotReturnedNull: false,
+            failureStage: "services" as const,
+            gptAtSlotAttempt: getRewardedAdGptDiagnostics(this.config.gptScriptUrl),
+            notes: [
+              ...(debugAtSlotAttempt.notes ?? []),
+              "gpt_services_enable_failed",
+              `gpt_services_error=${details}`,
+            ],
+          };
+          resolve({
+            placement,
+            provider: "web-gpt-rewarded",
+            status: "error",
+            details: buildGptStageFailureDetail("services", details, debug),
+            debug,
+          });
+          return;
+        }
+
         let settled = false;
         let rewardGranted = false;
         const timeoutId = window.setTimeout(() => {
@@ -1222,6 +1503,8 @@ class WebGptRewardedAdAdapter implements RewardedAdAdapter {
             debug: {
               ...debugAtSlotAttempt,
               slotReturnedNull: false,
+              failureStage: "slot",
+              gptAtSlotAttempt: getRewardedAdGptDiagnostics(this.config.gptScriptUrl),
               notes: [
                 ...(debugAtSlotAttempt.notes ?? []),
                 "slot_request_timeout",
@@ -1272,6 +1555,8 @@ class WebGptRewardedAdAdapter implements RewardedAdAdapter {
               debug: {
                 ...debugAtSlotAttempt,
                 slotReturnedNull: false,
+                failureStage: "slot",
+                gptAtSlotAttempt: getRewardedAdGptDiagnostics(this.config.gptScriptUrl),
                 notes: [
                   ...(debugAtSlotAttempt.notes ?? []),
                   "rewarded_visible_failed",
@@ -1314,6 +1599,8 @@ class WebGptRewardedAdAdapter implements RewardedAdAdapter {
             debug: {
               ...debugAtSlotAttempt,
               slotReturnedNull: false,
+              failureStage: null,
+              gptAtSlotAttempt: getRewardedAdGptDiagnostics(this.config.gptScriptUrl),
               notes: [
                 ...(debugAtSlotAttempt.notes ?? []),
                 rewardGranted
@@ -1341,6 +1628,8 @@ class WebGptRewardedAdAdapter implements RewardedAdAdapter {
             debug: {
               ...debugAtSlotAttempt,
               slotReturnedNull: false,
+              failureStage: "slot",
+              gptAtSlotAttempt: getRewardedAdGptDiagnostics(this.config.gptScriptUrl),
               notes: [
                 ...(debugAtSlotAttempt.notes ?? []),
                 "slot_render_ended_empty",
@@ -1354,7 +1643,6 @@ class WebGptRewardedAdAdapter implements RewardedAdAdapter {
         pubads.addEventListener("rewardedSlotClosed", onClosed);
         pubads.addEventListener("slotRenderEnded", onRenderEnded);
 
-        ensureGoogletagServicesEnabled(googletag);
         googletag.display(slot);
       };
 
@@ -1427,7 +1715,10 @@ export async function preloadRewardedAdRuntime(): Promise<boolean> {
     return false;
   }
   try {
-    await ensureGoogletagLoaded(config.gptScriptUrl, config.requestTimeoutMs);
+    await ensureGoogletagBootstrapped(
+      config.gptScriptUrl,
+      config.requestTimeoutMs,
+    );
     return true;
   } catch {
     return false;

@@ -247,10 +247,20 @@ web rewarded는 env만 맞는다고 동작하지 않는다.
   - timeout ms
   - `scriptLoadOutcome` / `scriptLoadClassification`
   - `securitypolicyviolation` 기반 CSP 의심 신호(있을 때만 hint)
+- 이번 기준으로는 timeout 진단을 아래 3단계로 분리한다
+  - A. script load
+  - B. GPT bootstrap / services init
+  - C. rewarded slot creation
+- 따라서 `googletag=yes`, `apiReady=yes`, `onload=yes`인데도 실패하면
+  더 이상 무조건 script load timeout으로 보지 않고,
+  `bootstrapStarted` / `bootstrapCompleted` / `servicesEnableAttempted` /
+  `servicesEnabledByApp` / `slotAttempted` / `slotReturnedNull`로 실제 정지 지점을 본다
 - 따라서 배포판에서 `web-gpt-rewarded:timeout`이 나더라도,
-  이제는 최소한 아래 둘을 구분할 수 있다
-  - script가 append된 뒤 `onload`/`onerror` 없이 timeout
-  - script append 자체가 DOM에 남지 않거나 CSP signal이 같이 잡힘
+  이제는 최소한 아래를 구분할 수 있다
+  - script stage timeout
+  - bootstrap stage timeout
+  - services init failure
+  - slot stage timeout / `slotReturnedNull`
 
 필수 유지 조건:
 - 실패 상태에서 pending claim 삭제 금지
@@ -322,7 +332,10 @@ web rewarded는 env만 맞는다고 동작하지 않는다.
 - [ ] 지원 브라우저/디바이스에서 rewarded 노출 가능 여부 확인
 - [ ] 미지원 환경에서 `unsupported` fallback이 UX를 깨지 않는지 확인
 - [ ] no_fill 비율 모니터링 기준 수립(placement별)
-- [ ] `timeout`이 뜨면 `?ad_debug=1` 패널에서 script append / onload / onerror / timeout / CSP hint를 먼저 확인
+- [ ] `timeout`이 뜨면 `?ad_debug=1` 패널에서
+      `scriptLoaded`, `bootstrapStarted`, `bootstrapCompleted`,
+      `servicesEnableAttempted`, `servicesEnabledByApp`,
+      `slotAttempted`, `slotReturnedNull`을 먼저 확인
 - [ ] `unsupported`가 뜨면 inventory보다 먼저 `DevDebugPanel`의
       viewport/mobile/secure 진단과 마지막 detail을 확인
 - [ ] page/GPT 상태가 정상인데도 `slotReturnedNull=true`이면 아래 순서로 점검
