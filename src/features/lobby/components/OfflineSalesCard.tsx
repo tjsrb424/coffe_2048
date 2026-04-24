@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CoinIcon } from "@/components/ui/CoinIcon";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useGameFeedback } from "@/hooks/useGameFeedback";
 import {
   getRewardedAdAvailability,
+  preloadRewardedAdRuntime,
   type RewardedAdResult,
   requestRewardedAd,
 } from "@/lib/ads/rewardedAds";
@@ -30,11 +31,17 @@ export function OfflineSalesCard({ className }: { className?: string }) {
   const { lightTap } = useGameFeedback();
   const [claimMode, setClaimMode] = useState<"idle" | "base" | "ad">("idle");
   const [notice, setNotice] = useState<string | null>(null);
-  if (!pendingReward || pendingReward.pendingCoins <= 0) return null;
-
   const adAvailability = getRewardedAdAvailability("offline_reward_double");
   const adSupported = adAvailability.isSupported;
   const isBusy = claimMode !== "idle";
+
+  useEffect(() => {
+    if (!pendingReward || pendingReward.pendingCoins <= 0) return;
+    if (adAvailability.providerMode !== "web-gpt-rewarded") return;
+    void preloadRewardedAdRuntime();
+  }, [adAvailability.providerMode, pendingReward]);
+
+  if (!pendingReward || pendingReward.pendingCoins <= 0) return null;
 
   const handleClaim = (doubled: boolean) => {
     const claimed = claimOfflineReward({

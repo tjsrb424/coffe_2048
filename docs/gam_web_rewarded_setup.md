@@ -237,6 +237,20 @@ web rewarded는 env만 맞는다고 동작하지 않는다.
   `?ad_debug=1`일 때만 `ReadOnlyAdDebugPanel`이 노출된다
 - 이 read-only 패널에서는 rewarded 진단만 볼 수 있고,
   재화 수정 / 세이브 조작 / mock 결과 변경 / provider override는 노출되지 않는다
+- 최근 패스에서는 `gpt.js` 로드 경로도 추가로 기록한다
+  - script append 시도 여부
+  - append target(`head` / `body` / `none`)
+  - existing script reuse 여부
+  - append 직후 script tag가 DOM에 남았는지
+  - `onload` / `onerror` / `timeout` 발생 여부
+  - script `src`
+  - timeout ms
+  - `scriptLoadOutcome` / `scriptLoadClassification`
+  - `securitypolicyviolation` 기반 CSP 의심 신호(있을 때만 hint)
+- 따라서 배포판에서 `web-gpt-rewarded:timeout`이 나더라도,
+  이제는 최소한 아래 둘을 구분할 수 있다
+  - script가 append된 뒤 `onload`/`onerror` 없이 timeout
+  - script append 자체가 DOM에 남지 않거나 CSP signal이 같이 잡힘
 
 필수 유지 조건:
 - 실패 상태에서 pending claim 삭제 금지
@@ -308,6 +322,7 @@ web rewarded는 env만 맞는다고 동작하지 않는다.
 - [ ] 지원 브라우저/디바이스에서 rewarded 노출 가능 여부 확인
 - [ ] 미지원 환경에서 `unsupported` fallback이 UX를 깨지 않는지 확인
 - [ ] no_fill 비율 모니터링 기준 수립(placement별)
+- [ ] `timeout`이 뜨면 `?ad_debug=1` 패널에서 script append / onload / onerror / timeout / CSP hint를 먼저 확인
 - [ ] `unsupported`가 뜨면 inventory보다 먼저 `DevDebugPanel`의
       viewport/mobile/secure 진단과 마지막 detail을 확인
 - [ ] page/GPT 상태가 정상인데도 `slotReturnedNull=true`이면 아래 순서로 점검
@@ -319,6 +334,45 @@ web rewarded는 env만 맞는다고 동작하지 않는다.
 - [ ] `npm run typecheck`
 - [ ] `npm run build`
 - [ ] rewarded 관련 Playwright 타깃 테스트 통과 확인
+
+## 9-5. CSP / headers / preload 점검 메모
+
+현재 레포 기준:
+- `next.config.ts`에는 `headers()`나 `Content-Security-Policy` 설정이 없다
+- `netlify.toml` 파일이 없다
+- `_headers` 파일도 없다
+- 즉, 코드 저장소 안에서는 GPT script를 막는 CSP/header 설정이 확인되지 않았다
+
+운영 의미:
+- Netlify UI의 custom headers
+- 상위 CDN / reverse proxy
+- 브라우저 확장 / 콘텐츠 차단기
+
+같이 **레포 밖에서** 주입되는 정책을 따로 확인해야 한다.
+
+GPT 쪽 권장:
+- Google 문서 기준 GPT는 고정 allowlist형 CSP보다 **nonce 기반 strict CSP**를 권장한다
+- 최소 부트 경로인 `https://securepubads.g.doubleclick.net/tag/js/gpt.js` 로딩은 열려 있어야 한다
+- 다만 creative/frame/connect 도메인은 고정 allowlist로 오래 유지하기 어렵다
+- 가능하면 `Content-Security-Policy-Report-Only`로 먼저 위반 보고를 수집한다
+
+현재 코드의 preload 전략:
+- `src/lib/ads/rewardedAds.ts`에 `preloadRewardedAdRuntime()`를 추가했다
+- 이 함수는 `PuzzleScreen`, `OfflineSalesCard`에서 **surface mount 시점**에만 얇게 호출된다
+- 선택 이유:
+  - 앱 전체 진입 직후 preload보다 과도한 선로딩을 줄일 수 있음
+  - 실제 광고 CTA가 있는 화면에서만 먼저 GPT 로딩을 시작할 수 있음
+  - 결과 모달 버튼 클릭 직전 lazy load보다 timeout 체감을 줄일 수 있음
+
+대안 비교:
+- 앱 진입 후 preload:
+  - 장점: 가장 빨리 warm-up 가능
+  - 단점: 광고 surface에 진입하지 않아도 모든 세션에서 GPT를 일찍 로드
+- 결과 모달 진입 시 preload:
+  - 장점: 퍼즐 보상 UX에 더 직접적
+  - 단점: 클릭 직전 대비 낫지만 오프라인 보상 surface와 공통화가 약함
+- 현재 선택한 surface mount preload:
+  - 두 광고 placement에 공통 적용 가능하고, 조기 로드와 과도한 전역 선로딩 사이의 절충안
 
 ---
 

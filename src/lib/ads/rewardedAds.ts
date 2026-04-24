@@ -75,6 +75,21 @@ export type RewardedAdGptDiagnostics = {
   scriptUrl: string;
   matchingScriptTagCount: number;
   matchingScriptPresent: boolean;
+  scriptAppendAttempted: boolean;
+  scriptAppendTarget: "head" | "body" | "none";
+  existingScriptFound: boolean;
+  existingScriptReused: boolean;
+  scriptTagFoundAfterAppend: boolean | null;
+  scriptElementSrc: string | null;
+  scriptOnloadFired: boolean;
+  scriptOnerrorFired: boolean;
+  scriptTimeoutFired: boolean;
+  scriptTimeoutMs: number | null;
+  scriptLoadOutcome: "idle" | "loading" | "loaded" | "error" | "timeout";
+  scriptLoadClassification: string | null;
+  cspSuspected: boolean | null;
+  cspViolationDirective: string | null;
+  cspViolationBlockedUri: string | null;
   hasWindowGoogletag: boolean;
   cmdLength: number | null;
   apiReady: boolean | null;
@@ -118,6 +133,26 @@ type RewardedAdRuntimeConfig = {
   requestTimeoutMs: number;
   adUnitPaths: Record<RewardedAdPlacement, string | null>;
 };
+
+type RewardedAdGptScriptLoadState = Pick<
+  RewardedAdGptDiagnostics,
+  | "scriptUrl"
+  | "scriptAppendAttempted"
+  | "scriptAppendTarget"
+  | "existingScriptFound"
+  | "existingScriptReused"
+  | "scriptTagFoundAfterAppend"
+  | "scriptElementSrc"
+  | "scriptOnloadFired"
+  | "scriptOnerrorFired"
+  | "scriptTimeoutFired"
+  | "scriptTimeoutMs"
+  | "scriptLoadOutcome"
+  | "scriptLoadClassification"
+  | "cspSuspected"
+  | "cspViolationDirective"
+  | "cspViolationBlockedUri"
+>;
 
 type GoogletagSlot = {
   addService(service: GoogletagPubAdsService): GoogletagSlot;
@@ -217,6 +252,9 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 8_000;
 
 let gptLoadPromise: Promise<GoogletagApi> | null = null;
 let gptServicesEnabled = false;
+let gptScriptLoadState: RewardedAdGptScriptLoadState | null = null;
+let rewardedAdSecurityPolicyListenerAttached = false;
+const gptHintedOrigins = new Set<string>();
 
 function sleep(ms: number) {
   return new Promise<void>((resolve) => {
@@ -316,6 +354,127 @@ function readRuntimeConfig(): RewardedAdRuntimeConfig {
     requestTimeoutMs: readRequestTimeoutMs(),
     adUnitPaths,
   };
+}
+
+function createDefaultGptScriptLoadState(
+  scriptUrl: string,
+  timeoutMs: number | null = null,
+): RewardedAdGptScriptLoadState {
+  return {
+    scriptUrl,
+    scriptAppendAttempted: false,
+    scriptAppendTarget: "none",
+    existingScriptFound: false,
+    existingScriptReused: false,
+    scriptTagFoundAfterAppend: null,
+    scriptElementSrc: null,
+    scriptOnloadFired: false,
+    scriptOnerrorFired: false,
+    scriptTimeoutFired: false,
+    scriptTimeoutMs: timeoutMs,
+    scriptLoadOutcome: "idle",
+    scriptLoadClassification: null,
+    cspSuspected: null,
+    cspViolationDirective: null,
+    cspViolationBlockedUri: null,
+  };
+}
+
+function getGptScriptLoadStateSnapshot(
+  scriptUrl: string,
+): RewardedAdGptScriptLoadState {
+  return gptScriptLoadState?.scriptUrl === scriptUrl
+    ? gptScriptLoadState
+    : createDefaultGptScriptLoadState(scriptUrl);
+}
+
+function updateGptScriptLoadState(
+  scriptUrl: string,
+  timeoutMs: number | null,
+  patch: Partial<RewardedAdGptScriptLoadState>,
+) {
+  const current =
+    gptScriptLoadState?.scriptUrl === scriptUrl
+      ? gptScriptLoadState
+      : createDefaultGptScriptLoadState(scriptUrl, timeoutMs);
+  gptScriptLoadState = {
+    ...current,
+    scriptTimeoutMs: timeoutMs ?? current.scriptTimeoutMs,
+    ...patch,
+  };
+}
+
+function ensureRewardedAdSecurityPolicyListener() {
+  if (
+    rewardedAdSecurityPolicyListenerAttached ||
+    typeof document === "undefined" ||
+    typeof window === "undefined"
+  ) {
+    return;
+  }
+  rewardedAdSecurityPolicyListenerAttached = true;
+  document.addEventListener("securitypolicyviolation", (event) => {
+    if (!gptScriptLoadState || gptScriptLoadState.scriptLoadOutcome !== "loading") {
+      return;
+    }
+    const blockedUri =
+      typeof event.blockedURI === "string" && event.blockedURI.length > 0
+        ? event.blockedURI
+        : null;
+    const directive =
+      typeof event.effectiveDirective === "string" && event.effectiveDirective.length > 0
+        ? event.effectiveDirective
+        : typeof event.violatedDirective === "string" &&
+            event.violatedDirective.length > 0
+          ? event.violatedDirective
+          : null;
+    const scriptOrigin = (() => {
+      try {
+        return new URL(gptScriptLoadState.scriptUrl, window.location.href).origin;
+      } catch {
+        return null;
+      }
+    })();
+    const looksRelevant =
+      directive?.includes("script-src") === true ||
+      blockedUri?.includes("doubleclick.net") === true ||
+      (scriptOrigin != null && blockedUri?.startsWith(scriptOrigin) === true);
+    if (!looksRelevant) return;
+    updateGptScriptLoadState(gptScriptLoadState.scriptUrl, gptScriptLoadState.scriptTimeoutMs, {
+      cspSuspected: true,
+      cspViolationDirective: directive,
+      cspViolationBlockedUri: blockedUri,
+      scriptLoadClassification: "script_blocked_by_csp",
+    });
+  });
+}
+
+function ensureGptConnectionHints(scriptUrl: string) {
+  if (typeof document === "undefined" || typeof window === "undefined") return;
+  let origin: string;
+  try {
+    origin = new URL(scriptUrl, window.location.href).origin;
+  } catch {
+    return;
+  }
+  if (gptHintedOrigins.has(origin)) return;
+  const parent = document.head ?? document.body;
+  if (!parent) return;
+
+  const preconnect = document.createElement("link");
+  preconnect.rel = "preconnect";
+  preconnect.href = origin;
+  preconnect.crossOrigin = "anonymous";
+  preconnect.setAttribute("data-rewarded-gpt-preconnect", origin);
+  parent.appendChild(preconnect);
+
+  const dnsPrefetch = document.createElement("link");
+  dnsPrefetch.rel = "dns-prefetch";
+  dnsPrefetch.href = origin;
+  dnsPrefetch.setAttribute("data-rewarded-gpt-dns-prefetch", origin);
+  parent.appendChild(dnsPrefetch);
+
+  gptHintedOrigins.add(origin);
 }
 
 function parseViewportMetaContent(content: string | null) {
@@ -490,11 +649,27 @@ function getRewardedAdGptDiagnostics(
   const matchingScriptTagCount = document.querySelectorAll(
     `script[src="${scriptUrl}"]`,
   ).length;
+  const scriptLoadState = getGptScriptLoadStateSnapshot(scriptUrl);
 
   return {
     scriptUrl,
     matchingScriptTagCount,
     matchingScriptPresent: matchingScriptTagCount > 0,
+    scriptAppendAttempted: scriptLoadState.scriptAppendAttempted,
+    scriptAppendTarget: scriptLoadState.scriptAppendTarget,
+    existingScriptFound: scriptLoadState.existingScriptFound,
+    existingScriptReused: scriptLoadState.existingScriptReused,
+    scriptTagFoundAfterAppend: scriptLoadState.scriptTagFoundAfterAppend,
+    scriptElementSrc: scriptLoadState.scriptElementSrc,
+    scriptOnloadFired: scriptLoadState.scriptOnloadFired,
+    scriptOnerrorFired: scriptLoadState.scriptOnerrorFired,
+    scriptTimeoutFired: scriptLoadState.scriptTimeoutFired,
+    scriptTimeoutMs: scriptLoadState.scriptTimeoutMs,
+    scriptLoadOutcome: scriptLoadState.scriptLoadOutcome,
+    scriptLoadClassification: scriptLoadState.scriptLoadClassification,
+    cspSuspected: scriptLoadState.cspSuspected,
+    cspViolationDirective: scriptLoadState.cspViolationDirective,
+    cspViolationBlockedUri: scriptLoadState.cspViolationBlockedUri,
     hasWindowGoogletag: !!googletag,
     cmdLength: Array.isArray(googletag?.cmd) ? googletag.cmd.length : null,
     apiReady:
@@ -554,6 +729,24 @@ function formatRewardedAdGptDiagnostics(
   return [
     `scriptPresent=${diagnostics.matchingScriptPresent}`,
     `scriptCount=${diagnostics.matchingScriptTagCount}`,
+    `scriptAppendAttempted=${diagnostics.scriptAppendAttempted}`,
+    `scriptAppendTarget=${diagnostics.scriptAppendTarget}`,
+    `existingScriptFound=${diagnostics.existingScriptFound}`,
+    `existingScriptReused=${diagnostics.existingScriptReused}`,
+    `scriptTagFoundAfterAppend=${diagnostics.scriptTagFoundAfterAppend}`,
+    `scriptSrc=${diagnostics.scriptElementSrc ?? "missing"}`,
+    `scriptOnload=${diagnostics.scriptOnloadFired}`,
+    `scriptOnerror=${diagnostics.scriptOnerrorFired}`,
+    `scriptTimeout=${diagnostics.scriptTimeoutFired}`,
+    `scriptTimeoutMs=${diagnostics.scriptTimeoutMs ?? "n/a"}`,
+    `scriptLoadOutcome=${diagnostics.scriptLoadOutcome}`,
+    `scriptLoadClassification=${diagnostics.scriptLoadClassification ?? "unknown"}`,
+    `cspSuspected=${diagnostics.cspSuspected}`,
+    diagnostics.cspViolationDirective || diagnostics.cspViolationBlockedUri
+      ? `cspViolation=${
+          diagnostics.cspViolationDirective ?? "script-src"
+        }:${diagnostics.cspViolationBlockedUri ?? "unknown"}`
+      : null,
     `hasGoogletag=${diagnostics.hasWindowGoogletag}`,
     `apiReady=${diagnostics.apiReady}`,
     `pubadsReady=${diagnostics.pubadsReady}`,
@@ -561,6 +754,49 @@ function formatRewardedAdGptDiagnostics(
     `rewardedEnum=${diagnostics.rewardedEnumValue ?? "missing"}`,
     `cmdLength=${diagnostics.cmdLength ?? "n/a"}`,
     `servicesEnabledByApp=${diagnostics.servicesEnabledByApp}`,
+  ]
+    .filter(Boolean)
+    .join("; ");
+}
+
+function buildGptLoadFailureDetail(
+  message: string,
+  debug: RewardedAdDebugSnapshot,
+): string {
+  const gptDiagnostics = debug.gptAfterLoad ?? debug.gptBeforeLoad;
+  const notes = [...(debug.notes ?? [])];
+  if (gptDiagnostics?.scriptLoadClassification) {
+    notes.push(`scriptLoad=${gptDiagnostics.scriptLoadClassification}`);
+  }
+  if (gptDiagnostics?.cspSuspected) {
+    notes.push(
+      `cspHint=${gptDiagnostics.cspViolationDirective ?? "script-src"}:${
+        gptDiagnostics.cspViolationBlockedUri ?? "unknown"
+      }`,
+    );
+  } else if (
+    gptDiagnostics?.scriptLoadOutcome === "timeout" &&
+    gptDiagnostics.scriptAppendAttempted &&
+    gptDiagnostics.scriptTagFoundAfterAppend
+  ) {
+    notes.push("likelyCause=script_appended_but_no_load_or_error_event");
+  } else if (
+    gptDiagnostics?.scriptLoadOutcome === "timeout" &&
+    gptDiagnostics.scriptAppendAttempted &&
+    gptDiagnostics.scriptTagFoundAfterAppend === false
+  ) {
+    notes.push("likelyCause=script_append_attempt_missing_from_dom");
+  } else if (gptDiagnostics?.scriptOnerrorFired) {
+    notes.push("likelyCause=script_error_event_network_or_blocker");
+  }
+
+  return [
+    message,
+    formatRewardedAdPageDiagnostics(debug.pageAtRequest),
+    formatRewardedAdGptDiagnostics(gptDiagnostics),
+    `adUnitPath=${debug.adUnitPath ?? "missing"}`,
+    `providerMode=${debug.providerMode}`,
+    notes.join("; "),
   ].join("; ");
 }
 
@@ -634,10 +870,26 @@ async function ensureGoogletagLoaded(
   scriptUrl: string,
   timeoutMs: number,
 ): Promise<GoogletagApi> {
-  const current = getWindowGoogletag();
-  if (isGoogletagReady(current)) return current;
   if (typeof window === "undefined" || typeof document === "undefined") {
     throw new Error("rewarded ads require a browser environment");
+  }
+  ensureRewardedAdSecurityPolicyListener();
+  ensureGptConnectionHints(scriptUrl);
+
+  const current = getWindowGoogletag();
+  if (isGoogletagReady(current)) {
+    const existingReadyScript = document.querySelector(
+      `script[src="${scriptUrl}"]`,
+    ) as HTMLScriptElement | null;
+    updateGptScriptLoadState(scriptUrl, timeoutMs, {
+      existingScriptFound: !!existingReadyScript,
+      existingScriptReused: !!existingReadyScript,
+      scriptElementSrc: existingReadyScript?.src ?? scriptUrl,
+      scriptLoadOutcome: "loaded",
+      scriptLoadClassification: "existing_script_ready",
+      cspSuspected: false,
+    });
+    return current;
   }
   if (gptLoadPromise) return gptLoadPromise;
 
@@ -645,36 +897,50 @@ async function ensureGoogletagLoaded(
 
   gptLoadPromise = new Promise<GoogletagApi>((resolve, reject) => {
     let settled = false;
-    const timeoutId = window.setTimeout(() => {
-      cleanup();
-      gptLoadPromise = null;
-      reject(new Error("GPT load timed out"));
-    }, timeoutMs);
-
     const existingScript = document.querySelector(
       `script[src="${scriptUrl}"]`,
     ) as HTMLScriptElement | null;
+    const script = existingScript ?? document.createElement("script");
+    const appendTarget = existingScript
+      ? "none"
+      : document.head
+        ? "head"
+        : document.body
+          ? "body"
+          : "none";
 
-    const finish = () => {
-      if (settled) return;
-      const next = getWindowGoogletag();
-      if (!isGoogletagReady(next)) return;
-      settled = true;
-      cleanup();
-      resolve(next);
+    updateGptScriptLoadState(scriptUrl, timeoutMs, {
+      scriptAppendAttempted: !existingScript,
+      scriptAppendTarget: appendTarget,
+      existingScriptFound: !!existingScript,
+      existingScriptReused: !!existingScript,
+      scriptTagFoundAfterAppend: null,
+      scriptElementSrc: existingScript?.src ?? scriptUrl,
+      scriptOnloadFired: false,
+      scriptOnerrorFired: false,
+      scriptTimeoutFired: false,
+      scriptLoadOutcome: "loading",
+      scriptLoadClassification: existingScript
+        ? "existing_script_reused"
+        : "script_append_started",
+      cspSuspected: null,
+      cspViolationDirective: null,
+      cspViolationBlockedUri: null,
+    });
+
+    const timeoutClassification = () => {
+      const state = getGptScriptLoadStateSnapshot(scriptUrl);
+      if (state.cspSuspected) return "script_blocked_by_csp";
+      if (state.existingScriptReused) return "script_timeout_reusing_existing_script";
+      if (state.scriptAppendAttempted && state.scriptTagFoundAfterAppend === false) {
+        return "script_append_attempt_missing_from_dom";
+      }
+      if (state.scriptAppendAttempted) return "script_appended_but_no_load_events";
+      return "script_load_timed_out";
     };
 
-    const pollId = window.setInterval(finish, 50);
-
-    const onLoad = () => {
-      finish();
-    };
-
-    const onError = () => {
-      cleanup();
-      gptLoadPromise = null;
-      reject(new Error("GPT script failed to load"));
-    };
+    let pollId = 0;
+    let timeoutId = 0;
 
     const cleanup = () => {
       window.clearTimeout(timeoutId);
@@ -683,12 +949,83 @@ async function ensureGoogletagLoaded(
       script.removeEventListener("error", onError);
     };
 
-    const script = existingScript ?? document.createElement("script");
+    const finalizeError = (error: Error) => {
+      cleanup();
+      gptLoadPromise = null;
+      reject(error);
+    };
+
+    const finish = () => {
+      if (settled) return;
+      const next = getWindowGoogletag();
+      if (!isGoogletagReady(next)) return;
+      settled = true;
+      updateGptScriptLoadState(scriptUrl, timeoutMs, {
+        scriptLoadOutcome: "loaded",
+        scriptLoadClassification: existingScript
+          ? "existing_script_ready"
+          : script.src === scriptUrl || script.src.endsWith("/gpt.js")
+            ? "script_loaded"
+            : "script_loaded_unknown_src",
+        cspSuspected: false,
+      });
+      cleanup();
+      resolve(next);
+    };
+
+    const onLoad = () => {
+      updateGptScriptLoadState(scriptUrl, timeoutMs, {
+        scriptOnloadFired: true,
+        scriptElementSrc: script.src || scriptUrl,
+        scriptLoadOutcome: "loaded",
+        scriptLoadClassification: existingScript
+          ? "existing_script_onload_fired"
+          : "script_onload_fired",
+        cspSuspected: false,
+      });
+      finish();
+    };
+
+    const onError = () => {
+      updateGptScriptLoadState(scriptUrl, timeoutMs, {
+        scriptOnerrorFired: true,
+        scriptElementSrc: script.src || scriptUrl,
+        scriptLoadOutcome: "error",
+        scriptLoadClassification: "script_onerror_fired",
+        cspSuspected: gptScriptLoadState?.cspSuspected ?? false,
+      });
+      finalizeError(new Error("GPT script failed to load"));
+    };
+
+    pollId = window.setInterval(finish, 50);
+    timeoutId = window.setTimeout(() => {
+      updateGptScriptLoadState(scriptUrl, timeoutMs, {
+        scriptTimeoutFired: true,
+        scriptLoadOutcome: "timeout",
+        scriptLoadClassification: timeoutClassification(),
+      });
+      finalizeError(new Error("GPT load timed out"));
+    }, timeoutMs);
+
     if (!existingScript) {
       script.async = true;
       script.src = scriptUrl;
       script.crossOrigin = "anonymous";
-      document.head.appendChild(script);
+      const parent = appendTarget === "body" ? document.body : document.head;
+      if (!parent) {
+        updateGptScriptLoadState(scriptUrl, timeoutMs, {
+          scriptLoadOutcome: "error",
+          scriptLoadClassification: "script_append_target_missing",
+        });
+        finalizeError(new Error("GPT script could not be appended to document"));
+        return;
+      }
+      parent.appendChild(script);
+      updateGptScriptLoadState(scriptUrl, timeoutMs, {
+        scriptElementSrc: script.src || scriptUrl,
+        scriptTagFoundAfterAppend:
+          document.querySelector(`script[src="${scriptUrl}"]`) != null,
+      });
     }
     script.addEventListener("load", onLoad);
     script.addEventListener("error", onError);
@@ -809,25 +1146,26 @@ class WebGptRewardedAdAdapter implements RewardedAdAdapter {
         this.config.requestTimeoutMs,
       );
     } catch (error) {
-      const details =
+      const rawDetails =
         error instanceof Error ? error.message : "failed to load GPT runtime";
+      const debug = {
+        ...baseDebug,
+        gptAfterLoad: getRewardedAdGptDiagnostics(this.config.gptScriptUrl),
+        notes: [
+          ...(baseDebug.notes ?? []),
+          "gpt_load_failed",
+          `gpt_load_error=${rawDetails}`,
+        ],
+      };
       return {
         placement,
         provider: "web-gpt-rewarded",
         status:
-          typeof details === "string" && /timed out/i.test(details)
+          typeof rawDetails === "string" && /timed out/i.test(rawDetails)
             ? "timeout"
             : "error",
-        details,
-        debug: {
-          ...baseDebug,
-          gptAfterLoad: getRewardedAdGptDiagnostics(this.config.gptScriptUrl),
-          notes: [
-            ...(baseDebug.notes ?? []),
-            "gpt_load_failed",
-            `gpt_load_error=${details}`,
-          ],
-        },
+        details: buildGptLoadFailureDetail(rawDetails, debug),
+        debug,
       };
     }
 
@@ -1078,6 +1416,22 @@ export function requestRewardedAd(
       });
       return fallbackResult;
     });
+}
+
+export async function preloadRewardedAdRuntime(): Promise<boolean> {
+  const config = readRuntimeConfig();
+  if (config.resolvedProviderMode !== "web-gpt-rewarded") {
+    return false;
+  }
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return false;
+  }
+  try {
+    await ensureGoogletagLoaded(config.gptScriptUrl, config.requestTimeoutMs);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function getRewardedAdMockBehavior(): RewardedAdMockBehavior {

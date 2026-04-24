@@ -62,6 +62,7 @@ export function ReadOnlyAdDebugPanel({ className }: { className?: string }) {
   const pageDiagnostics = runtimeDebugInfo.pageDiagnostics;
   const gptDiagnostics = runtimeDebugInfo.gptDiagnostics;
   const lastDebug = lastRewardedAdAttempt?.debug;
+  const lastLoadDiagnostics = lastDebug?.gptAfterLoad ?? lastDebug?.gptBeforeLoad ?? null;
 
   return (
     <div
@@ -240,6 +241,72 @@ export function ReadOnlyAdDebugPanel({ className }: { className?: string }) {
                       {formatMaybeBoolean(gptDiagnostics?.servicesEnabledByApp)}
                     </span>
                   </div>
+                  <div>
+                    script append / target / reuse:{" "}
+                    <span className="font-semibold">
+                      {formatMaybeBoolean(gptDiagnostics?.scriptAppendAttempted)}
+                    </span>
+                    {" / "}
+                    <span className="font-semibold">
+                      {gptDiagnostics?.scriptAppendTarget ?? "none"}
+                    </span>
+                    {" / "}
+                    <span className="font-semibold">
+                      {formatMaybeBoolean(gptDiagnostics?.existingScriptReused)}
+                    </span>
+                  </div>
+                  <div>
+                    script src / found after append:{" "}
+                    <span className="break-all font-mono">
+                      {gptDiagnostics?.scriptElementSrc ?? gptDiagnostics?.scriptUrl ?? "(missing)"}
+                    </span>
+                    {" / "}
+                    <span className="font-semibold">
+                      {formatMaybeBoolean(gptDiagnostics?.scriptTagFoundAfterAppend)}
+                    </span>
+                  </div>
+                  <div>
+                    script onload / onerror / timeout ms:{" "}
+                    <span className="font-semibold">
+                      {formatMaybeBoolean(gptDiagnostics?.scriptOnloadFired)}
+                    </span>
+                    {" / "}
+                    <span className="font-semibold">
+                      {formatMaybeBoolean(gptDiagnostics?.scriptOnerrorFired)}
+                    </span>
+                    {" / "}
+                    <span className="font-semibold">
+                      {formatMaybeText(gptDiagnostics?.scriptTimeoutMs)}
+                    </span>
+                  </div>
+                  <div>
+                    script outcome / CSP suspected:{" "}
+                    <span className="font-semibold">
+                      {gptDiagnostics?.scriptLoadOutcome ?? "unknown"}
+                    </span>
+                    {" / "}
+                    <span className="font-semibold">
+                      {formatMaybeBoolean(gptDiagnostics?.cspSuspected)}
+                    </span>
+                  </div>
+                  {gptDiagnostics?.scriptLoadClassification ? (
+                    <div>
+                      script classification:{" "}
+                      <span className="font-mono">
+                        {gptDiagnostics.scriptLoadClassification}
+                      </span>
+                    </div>
+                  ) : null}
+                  {gptDiagnostics?.cspViolationDirective ||
+                  gptDiagnostics?.cspViolationBlockedUri ? (
+                    <div>
+                      CSP hint:{" "}
+                      <span className="font-mono">
+                        {gptDiagnostics?.cspViolationDirective ?? "script-src"} /{" "}
+                        {gptDiagnostics?.cspViolationBlockedUri ?? "(blocked uri unknown)"}
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
@@ -353,6 +420,75 @@ export function ReadOnlyAdDebugPanel({ className }: { className?: string }) {
                         )}
                       </span>
                     </div>
+                    <div>
+                      load append / target / reuse:{" "}
+                      <span className="font-semibold">
+                        {formatMaybeBoolean(lastLoadDiagnostics?.scriptAppendAttempted)}
+                      </span>
+                      {" / "}
+                      <span className="font-semibold">
+                        {lastLoadDiagnostics?.scriptAppendTarget ?? "none"}
+                      </span>
+                      {" / "}
+                      <span className="font-semibold">
+                        {formatMaybeBoolean(lastLoadDiagnostics?.existingScriptReused)}
+                      </span>
+                    </div>
+                    <div>
+                      load src / found after append:{" "}
+                      <span className="break-all font-mono">
+                        {lastLoadDiagnostics?.scriptElementSrc ??
+                          lastLoadDiagnostics?.scriptUrl ??
+                          "(missing)"}
+                      </span>
+                      {" / "}
+                      <span className="font-semibold">
+                        {formatMaybeBoolean(lastLoadDiagnostics?.scriptTagFoundAfterAppend)}
+                      </span>
+                    </div>
+                    <div>
+                      load onload / onerror / timeout ms:{" "}
+                      <span className="font-semibold">
+                        {formatMaybeBoolean(lastLoadDiagnostics?.scriptOnloadFired)}
+                      </span>
+                      {" / "}
+                      <span className="font-semibold">
+                        {formatMaybeBoolean(lastLoadDiagnostics?.scriptOnerrorFired)}
+                      </span>
+                      {" / "}
+                      <span className="font-semibold">
+                        {formatMaybeText(lastLoadDiagnostics?.scriptTimeoutMs)}
+                      </span>
+                    </div>
+                    <div>
+                      load outcome / CSP suspected:{" "}
+                      <span className="font-semibold">
+                        {lastLoadDiagnostics?.scriptLoadOutcome ?? "unknown"}
+                      </span>
+                      {" / "}
+                      <span className="font-semibold">
+                        {formatMaybeBoolean(lastLoadDiagnostics?.cspSuspected)}
+                      </span>
+                    </div>
+                    {lastLoadDiagnostics?.scriptLoadClassification ? (
+                      <div>
+                        load classification:{" "}
+                        <span className="font-mono">
+                          {lastLoadDiagnostics.scriptLoadClassification}
+                        </span>
+                      </div>
+                    ) : null}
+                    {lastLoadDiagnostics?.cspViolationDirective ||
+                    lastLoadDiagnostics?.cspViolationBlockedUri ? (
+                      <div>
+                        load CSP hint:{" "}
+                        <span className="font-mono">
+                          {lastLoadDiagnostics?.cspViolationDirective ?? "script-src"} /{" "}
+                          {lastLoadDiagnostics?.cspViolationBlockedUri ??
+                            "(blocked uri unknown)"}
+                        </span>
+                      </div>
+                    ) : null}
                     {lastDebug?.notes?.length ? (
                       <div>
                         debug notes:{" "}

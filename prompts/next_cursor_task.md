@@ -54,6 +54,7 @@
 - 루트 viewport는 현재 `width=device-width, initial-scale=1, viewport-fit=cover` 기준으로 정리돼 있고, `unsupported` detail/DevDebugPanel에는 viewport/mobile/secure 후보 원인이 남도록 보강된 상태
 - 최근 패스에서는 `defineOutOfPageSlot(..., REWARDED)` 직전/직후의 page/GPT state와 `slotReturnedNull`을 structured debug로 남기고, `last unsupported` 결과만으로 CTA를 미리 잠그지 않도록 완화한 상태
 - production 배포판에서는 풀 `DevDebugPanel` 대신 `?ad_debug=1`일 때만 열리는 `ReadOnlyAdDebugPanel`로 광고 진단을 읽을 수 있는 상태
+- 최신 상태에서는 `gpt.js` load timeout도 append/reuse/onload/onerror/timeout/CSP hint까지 structured debug로 볼 수 있는 상태
 - dev/debug provider override + mock outcome 토글
 - 1.0 출시선 문서 고정
 - `/shop` / `pass` / `liveOps` / placeholder BM 노출 정리
@@ -154,6 +155,8 @@
 - web rewarded가 다시 `unsupported`면 store/claim을 건드리기 전에
   dev에서는 `DevDebugPanel`, 배포판에서는 `?ad_debug=1`의 `ReadOnlyAdDebugPanel`로
   page diagnostics + GPT 상태 + 마지막 `slotReturnedNull` debug를 먼저 확인할 것
+- web rewarded가 `timeout`이면 inventory/no_fill보다 먼저
+  `gpt.js` append 시도 / DOM tag 존재 / `onload` / `onerror` / `timeout` / CSP hint를 확인할 것
 - page/GPT 상태가 정상인데도 `slotReturnedNull=true`가 반복되면,
   코드보다 GAM의 `Block non-instream video ads`, rewarded ad unit/line item, 브라우저/웹뷰 지원 범위를 먼저 의심할 것
 - reward claim 중복 수령 방지 / 새로고침 안정성 / mock 경로를 깨지 않는 범위만 다룰 것

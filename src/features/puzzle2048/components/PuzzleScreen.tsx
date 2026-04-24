@@ -9,6 +9,7 @@ import { HeartIcon } from "@/components/ui/HeartIcon";
 import { useGameFeedback } from "@/hooks/useGameFeedback";
 import {
   getRewardedAdAvailability,
+  preloadRewardedAdRuntime,
   type RewardedAdStatus,
   requestRewardedAd,
 } from "@/lib/ads/rewardedAds";
@@ -101,6 +102,11 @@ export function PuzzleScreen() {
   useEffect(() => {
     router.prefetch("/lobby");
   }, [router]);
+
+  useEffect(() => {
+    if (puzzleRewardAdAvailability.providerMode !== "web-gpt-rewarded") return;
+    void preloadRewardedAdRuntime();
+  }, [puzzleRewardAdAvailability.providerMode]);
 
   useEffect(() => {
     if (pendingPuzzleRewardClaim) {
