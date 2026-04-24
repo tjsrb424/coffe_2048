@@ -64,6 +64,9 @@ export function DevDebugPanel({ className }: { className?: string }) {
   );
 
   const title = useMemo(() => "DEV", []);
+  const rewardedDebugInfo = getRewardedAdRuntimeDebugInfo();
+  const rewardedPageDiagnostics = rewardedDebugInfo.pageDiagnostics;
+  const rewardedGptDiagnostics = rewardedDebugInfo.gptDiagnostics;
 
   const bump = useCallback(
     (delta: Partial<{ coins: number; beans: number; hearts: number }>) => {
@@ -308,7 +311,30 @@ export function DevDebugPanel({ className }: { className?: string }) {
               <p className="mt-1 text-[11px] leading-relaxed text-coffee-600/80">
                 현재 resolved:{" "}
                 <span className="font-semibold">
-                  {getRewardedAdRuntimeDebugInfo().resolvedProviderMode}
+                  {rewardedDebugInfo.resolvedProviderMode}
+                </span>
+              </p>
+              <p className="mt-1 text-[11px] leading-relaxed text-coffee-600/80">
+                현재 viewport neutral:{" "}
+                <span className="font-semibold">
+                  {rewardedPageDiagnostics?.hasNeutralZoomViewport ? "yes" : "no"}
+                </span>
+              </p>
+              <p className="mt-1 text-[11px] leading-relaxed text-coffee-600/80">
+                현재 mobile heuristic:{" "}
+                <span className="font-semibold">
+                  {rewardedPageDiagnostics?.isLikelyMobileDevice ? "yes" : "no"}
+                </span>
+              </p>
+              <p className="mt-1 text-[11px] leading-relaxed text-coffee-600/80">
+                현재 top-level window:{" "}
+                <span className="font-semibold">
+                  {rewardedPageDiagnostics == null ||
+                  rewardedPageDiagnostics.isTopLevelWindow === null
+                    ? "unknown"
+                    : rewardedPageDiagnostics.isTopLevelWindow
+                      ? "yes"
+                      : "no"}
                 </span>
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
@@ -342,6 +368,109 @@ export function DevDebugPanel({ className }: { className?: string }) {
                   auto
                 </Button>
               </div>
+              {rewardedPageDiagnostics ? (
+                <div className="mt-3 rounded-2xl bg-cream-50/80 px-3 py-2 text-[11px] leading-relaxed text-coffee-800 ring-1 ring-coffee-600/10">
+                  <div>
+                    페이지 조건:{" "}
+                    <span className="font-semibold">
+                      {rewardedPageDiagnostics.path ?? "(unknown path)"}
+                    </span>
+                  </div>
+                  <div>
+                    viewport:{" "}
+                    <span className="font-mono">
+                      {rewardedPageDiagnostics.viewportMetaContent ?? "(missing)"}
+                    </span>
+                  </div>
+                  <div>
+                    secure/mobile/touch:{" "}
+                    <span className="font-semibold">
+                      {rewardedPageDiagnostics.isSecureContext ? "secure" : "insecure"}
+                    </span>
+                    {" / "}
+                    <span className="font-semibold">
+                      {rewardedPageDiagnostics.isLikelyMobileDevice ? "mobile" : "not-mobile"}
+                    </span>
+                    {" / "}
+                    <span className="font-semibold">
+                      {rewardedPageDiagnostics.hasTouchSupport ? "touch" : "no-touch"}
+                    </span>
+                  </div>
+                  <div>
+                    top-level/ready/focus:{" "}
+                    <span className="font-semibold">
+                      {rewardedPageDiagnostics.isTopLevelWindow === null
+                        ? "unknown"
+                        : rewardedPageDiagnostics.isTopLevelWindow
+                          ? "top-level"
+                          : "embedded"}
+                    </span>
+                    {" / "}
+                    {rewardedPageDiagnostics.documentReadyState ?? "unknown"}
+                    {" / "}
+                    <span className="font-semibold">
+                      {rewardedPageDiagnostics.hasFocus ? "focus" : "blur"}
+                    </span>
+                  </div>
+                  <div>
+                    size:{" "}
+                    {rewardedPageDiagnostics.innerWidth ?? "?"}x
+                    {rewardedPageDiagnostics.innerHeight ?? "?"}
+                    {"  "}
+                    screen:{" "}
+                    {rewardedPageDiagnostics.screenWidth ?? "?"}x
+                    {rewardedPageDiagnostics.screenHeight ?? "?"}
+                  </div>
+                  {rewardedPageDiagnostics.likelyUnsupportedReasons.length > 0 ? (
+                    <div>
+                      unsupported 후보:{" "}
+                      <span className="font-semibold">
+                        {rewardedPageDiagnostics.likelyUnsupportedReasons.join(", ")}
+                      </span>
+                    </div>
+                  ) : (
+                    <div>unsupported 후보: 뚜렷한 페이지 레벨 문제 없음</div>
+                  )}
+                </div>
+              ) : null}
+              {rewardedGptDiagnostics ? (
+                <div className="mt-3 rounded-2xl bg-cream-50/80 px-3 py-2 text-[11px] leading-relaxed text-coffee-800 ring-1 ring-coffee-600/10">
+                  <div>
+                    GPT 상태:{" "}
+                    <span className="font-semibold">
+                      {rewardedGptDiagnostics.hasWindowGoogletag ? "googletag" : "no-googletag"}
+                    </span>
+                    {" / apiReady="}
+                    <span className="font-semibold">
+                      {String(rewardedGptDiagnostics.apiReady)}
+                    </span>
+                    {" / pubadsReady="}
+                    <span className="font-semibold">
+                      {String(rewardedGptDiagnostics.pubadsReady)}
+                    </span>
+                  </div>
+                  <div>
+                    script / enum / slot API:{" "}
+                    {rewardedGptDiagnostics.matchingScriptTagCount}
+                    {" / "}
+                    <span className="font-semibold">
+                      {rewardedGptDiagnostics.rewardedEnumValue ?? "missing"}
+                    </span>
+                    {" / "}
+                    <span className="font-semibold">
+                      {rewardedGptDiagnostics.hasDefineOutOfPageSlot ? "defineSlot" : "no-defineSlot"}
+                    </span>
+                  </div>
+                  <div>
+                    cmd / servicesEnabledByApp:{" "}
+                    {rewardedGptDiagnostics.cmdLength ?? "n/a"}
+                    {" / "}
+                    <span className="font-semibold">
+                      {rewardedGptDiagnostics.servicesEnabledByApp ? "enabled" : "not-yet"}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
               {lastRewardedAdAttempt ? (
                 <div className="mt-3 rounded-2xl bg-cream-50/80 px-3 py-2 text-[11px] leading-relaxed text-coffee-800 ring-1 ring-coffee-600/10">
                   <div>
@@ -358,6 +487,58 @@ export function DevDebugPanel({ className }: { className?: string }) {
                   </div>
                   {lastRewardedAdAttempt.details ? (
                     <div>detail: {lastRewardedAdAttempt.details}</div>
+                  ) : null}
+                  {lastRewardedAdAttempt.debug ? (
+                    <div className="mt-2 space-y-1">
+                      <div>
+                        요청 path/adUnit:{" "}
+                        <span className="font-semibold">
+                          {lastRewardedAdAttempt.debug.requestedPath ?? "(unknown)"}
+                        </span>
+                        {" / "}
+                        <span className="font-semibold">
+                          {lastRewardedAdAttempt.debug.adUnitPath ?? "(missing)"}
+                        </span>
+                      </div>
+                      <div>
+                        slot format/null:{" "}
+                        <span className="font-semibold">
+                          {lastRewardedAdAttempt.debug.slotFormatRequested ?? "(missing)"}
+                        </span>
+                        {" / "}
+                        <span className="font-semibold">
+                          {lastRewardedAdAttempt.debug.slotReturnedNull === undefined
+                            ? "n/a"
+                            : lastRewardedAdAttempt.debug.slotReturnedNull
+                              ? "null"
+                              : "created"}
+                        </span>
+                      </div>
+                      <div>
+                        request-time top-level/mobile:{" "}
+                        <span className="font-semibold">
+                          {lastRewardedAdAttempt.debug.pageAtRequest?.isTopLevelWindow === null
+                            ? "unknown"
+                            : lastRewardedAdAttempt.debug.pageAtRequest?.isTopLevelWindow
+                              ? "top-level"
+                              : "embedded"}
+                        </span>
+                        {" / "}
+                        <span className="font-semibold">
+                          {lastRewardedAdAttempt.debug.pageAtRequest?.isLikelyMobileDevice
+                            ? "mobile"
+                            : "not-mobile"}
+                        </span>
+                      </div>
+                      {lastRewardedAdAttempt.debug.notes?.length ? (
+                        <div>
+                          debug notes:{" "}
+                          <span className="font-semibold">
+                            {lastRewardedAdAttempt.debug.notes.join(", ")}
+                          </span>
+                        </div>
+                      ) : null}
+                    </div>
                   ) : null}
                 </div>
               ) : null}

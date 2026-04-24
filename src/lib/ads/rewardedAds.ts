@@ -26,6 +26,7 @@ export type RewardedAdResult = {
   provider: RewardedAdProvider;
   status: RewardedAdStatus;
   details?: string;
+  debug?: RewardedAdDebugSnapshot;
 };
 
 export type RewardedAdAttemptSnapshot = RewardedAdResult & {
@@ -40,6 +41,69 @@ export type RewardedAdAvailability = {
   provider: RewardedAdProvider;
   source: "config" | "last_result";
   details?: string;
+};
+
+export type RewardedAdPageDiagnostics = {
+  href: string | null;
+  path: string | null;
+  origin: string | null;
+  referrer: string | null;
+  isSecureContext: boolean;
+  documentReadyState: string | null;
+  visibilityState: string | null;
+  hasFocus: boolean;
+  isTopLevelWindow: boolean | null;
+  canAccessTopWindow: boolean;
+  viewportMetaContent: string | null;
+  viewportWidthSetting: string | null;
+  viewportInitialScale: number | null;
+  viewportMaximumScale: number | null;
+  viewportUserScalable: string | null;
+  hasNeutralZoomViewport: boolean;
+  isLikelyMobileDevice: boolean;
+  hasTouchSupport: boolean;
+  maxTouchPoints: number;
+  innerWidth: number | null;
+  innerHeight: number | null;
+  screenWidth: number | null;
+  screenHeight: number | null;
+  userAgent: string | null;
+  likelyUnsupportedReasons: string[];
+};
+
+export type RewardedAdGptDiagnostics = {
+  scriptUrl: string;
+  matchingScriptTagCount: number;
+  matchingScriptPresent: boolean;
+  hasWindowGoogletag: boolean;
+  cmdLength: number | null;
+  apiReady: boolean | null;
+  pubadsReady: boolean | null;
+  hasPubads: boolean;
+  hasEnableServices: boolean;
+  hasDefineOutOfPageSlot: boolean;
+  hasDisplay: boolean;
+  hasDestroySlots: boolean;
+  rewardedEnumAvailable: boolean;
+  rewardedEnumValue: string | null;
+  servicesEnabledByApp: boolean;
+};
+
+export type RewardedAdDebugSnapshot = {
+  requestedPath: string | null;
+  requestedHref: string | null;
+  providerMode: RewardedAdProviderMode;
+  providerModeOverride: RewardedAdProviderMode | null;
+  configuredProviderMode: RewardedAdProviderMode;
+  adUnitPath: string | null;
+  pageAtRequest: RewardedAdPageDiagnostics | null;
+  pageAtSlotAttempt?: RewardedAdPageDiagnostics | null;
+  gptBeforeLoad: RewardedAdGptDiagnostics | null;
+  gptAfterLoad?: RewardedAdGptDiagnostics | null;
+  gptAtSlotAttempt?: RewardedAdGptDiagnostics | null;
+  slotFormatRequested?: string | null;
+  slotReturnedNull?: boolean;
+  notes?: string[];
 };
 
 export interface RewardedAdAdapter {
@@ -254,6 +318,289 @@ function readRuntimeConfig(): RewardedAdRuntimeConfig {
   };
 }
 
+function parseViewportMetaContent(content: string | null) {
+  const values = new Map<string, string>();
+  if (!content) return values;
+
+  for (const rawPart of content.split(",")) {
+    const part = rawPart.trim().toLowerCase();
+    if (!part) continue;
+    const [rawKey, ...rawValueParts] = part.split("=");
+    const key = rawKey?.trim();
+    if (!key) continue;
+    values.set(key, rawValueParts.join("=").trim());
+  }
+
+  return values;
+}
+
+function parseNumericViewportValue(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function isApproximately(value: number | null, target: number) {
+  return value !== null && Math.abs(value - target) < 0.01;
+}
+
+function getTopLevelWindowState() {
+  if (typeof window === "undefined") {
+    return {
+      isTopLevelWindow: null,
+      canAccessTopWindow: false,
+    };
+  }
+
+  try {
+    return {
+      isTopLevelWindow: window.top === window,
+      canAccessTopWindow: true,
+    };
+  } catch {
+    return {
+      isTopLevelWindow: null,
+      canAccessTopWindow: false,
+    };
+  }
+}
+
+export function getRewardedAdPageDiagnostics():
+  | RewardedAdPageDiagnostics
+  | null {
+  if (
+    typeof window === "undefined" ||
+    typeof document === "undefined" ||
+    typeof navigator === "undefined"
+  ) {
+    return null;
+  }
+
+  const viewportMetaContent =
+    document
+      .querySelector('meta[name="viewport"]')
+      ?.getAttribute("content")
+      ?.trim() ?? null;
+  const viewportValues = parseViewportMetaContent(viewportMetaContent);
+  const viewportWidthSetting = viewportValues.get("width") ?? null;
+  const viewportInitialScale = parseNumericViewportValue(
+    viewportValues.get("initial-scale"),
+  );
+  const viewportMaximumScale = parseNumericViewportValue(
+    viewportValues.get("maximum-scale"),
+  );
+  const viewportUserScalable = viewportValues.get("user-scalable") ?? null;
+  const topLevelWindowState = getTopLevelWindowState();
+
+  const maxTouchPoints =
+    typeof navigator.maxTouchPoints === "number" ? navigator.maxTouchPoints : 0;
+  const hasTouchSupport = "ontouchstart" in window || maxTouchPoints > 0;
+  const userAgent = navigator.userAgent.toLowerCase();
+  const userAgentData = (
+    navigator as Navigator & { userAgentData?: { mobile?: boolean } }
+  ).userAgentData;
+  const isLikelyMobileDevice =
+    userAgentData?.mobile === true ||
+    /android|iphone|ipod|ipad|mobile/i.test(userAgent) ||
+    (hasTouchSupport &&
+      typeof window.screen?.width === "number" &&
+      typeof window.screen?.height === "number" &&
+      Math.min(window.screen.width, window.screen.height) <= 1024);
+
+  const likelyUnsupportedReasons: string[] = [];
+  if (!viewportMetaContent) {
+    likelyUnsupportedReasons.push("viewport_meta_missing");
+  }
+  if (viewportWidthSetting !== "device-width") {
+    likelyUnsupportedReasons.push("viewport_width_not_device_width");
+  }
+  if (!isApproximately(viewportInitialScale, 1)) {
+    likelyUnsupportedReasons.push("viewport_initial_scale_not_1");
+  }
+  if (viewportMaximumScale !== null && viewportMaximumScale <= 1) {
+    likelyUnsupportedReasons.push("viewport_zoom_locked");
+  }
+  if (viewportUserScalable === "no") {
+    likelyUnsupportedReasons.push("viewport_user_scalable_disabled");
+  }
+  if (!window.isSecureContext) {
+    likelyUnsupportedReasons.push("insecure_context");
+  }
+  if (topLevelWindowState.isTopLevelWindow === false) {
+    likelyUnsupportedReasons.push("not_top_level_window");
+  }
+  if (!topLevelWindowState.canAccessTopWindow) {
+    likelyUnsupportedReasons.push("top_window_inaccessible");
+  }
+  if (!isLikelyMobileDevice) {
+    likelyUnsupportedReasons.push("device_not_likely_mobile");
+  }
+  if (!hasTouchSupport) {
+    likelyUnsupportedReasons.push("touch_not_detected");
+  }
+
+  return {
+    href: window.location.href,
+    path: window.location.pathname,
+    origin: window.location.origin,
+    referrer: document.referrer || null,
+    isSecureContext: window.isSecureContext,
+    documentReadyState: document.readyState,
+    visibilityState: document.visibilityState,
+    hasFocus:
+      typeof document.hasFocus === "function" ? document.hasFocus() : false,
+    isTopLevelWindow: topLevelWindowState.isTopLevelWindow,
+    canAccessTopWindow: topLevelWindowState.canAccessTopWindow,
+    viewportMetaContent,
+    viewportWidthSetting,
+    viewportInitialScale,
+    viewportMaximumScale,
+    viewportUserScalable,
+    hasNeutralZoomViewport:
+      viewportWidthSetting === "device-width" &&
+      isApproximately(viewportInitialScale, 1) &&
+      (viewportMaximumScale === null || viewportMaximumScale > 1) &&
+      viewportUserScalable !== "no",
+    isLikelyMobileDevice,
+    hasTouchSupport,
+    maxTouchPoints,
+    innerWidth: typeof window.innerWidth === "number" ? window.innerWidth : null,
+    innerHeight:
+      typeof window.innerHeight === "number" ? window.innerHeight : null,
+    screenWidth:
+      typeof window.screen?.width === "number" ? window.screen.width : null,
+    screenHeight:
+      typeof window.screen?.height === "number" ? window.screen.height : null,
+    userAgent: navigator.userAgent,
+    likelyUnsupportedReasons,
+  };
+}
+
+function getRewardedAdGptDiagnostics(
+  scriptUrl: string,
+): RewardedAdGptDiagnostics | null {
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return null;
+  }
+
+  const googletag = getWindowGoogletag();
+  const googletagWithPubadsReady = googletag as
+    | (Partial<GoogletagApi> & { pubadsReady?: boolean })
+    | undefined;
+  const matchingScriptTagCount = document.querySelectorAll(
+    `script[src="${scriptUrl}"]`,
+  ).length;
+
+  return {
+    scriptUrl,
+    matchingScriptTagCount,
+    matchingScriptPresent: matchingScriptTagCount > 0,
+    hasWindowGoogletag: !!googletag,
+    cmdLength: Array.isArray(googletag?.cmd) ? googletag.cmd.length : null,
+    apiReady:
+      typeof googletag?.apiReady === "boolean" ? googletag.apiReady : null,
+    pubadsReady:
+      typeof googletagWithPubadsReady?.pubadsReady === "boolean"
+        ? googletagWithPubadsReady.pubadsReady ?? null
+        : null,
+    hasPubads: typeof googletag?.pubads === "function",
+    hasEnableServices: typeof googletag?.enableServices === "function",
+    hasDefineOutOfPageSlot:
+      typeof googletag?.defineOutOfPageSlot === "function",
+    hasDisplay: typeof googletag?.display === "function",
+    hasDestroySlots: typeof googletag?.destroySlots === "function",
+    rewardedEnumAvailable: !!googletag?.enums?.OutOfPageFormat?.REWARDED,
+    rewardedEnumValue: googletag?.enums?.OutOfPageFormat?.REWARDED ?? null,
+    servicesEnabledByApp: gptServicesEnabled,
+  };
+}
+
+function formatRewardedAdPageDiagnostics(
+  diagnostics: RewardedAdPageDiagnostics | null,
+): string {
+  if (!diagnostics) return "page diagnostics unavailable";
+
+  const size =
+    diagnostics.innerWidth !== null && diagnostics.innerHeight !== null
+      ? `${diagnostics.innerWidth}x${diagnostics.innerHeight}`
+      : "unknown";
+  const reasons =
+    diagnostics.likelyUnsupportedReasons.length > 0
+      ? diagnostics.likelyUnsupportedReasons.join(",")
+      : "no_obvious_page_level_issue";
+
+  return [
+    `likelyCause=${reasons}`,
+    `secure=${diagnostics.isSecureContext}`,
+    `topLevel=${diagnostics.isTopLevelWindow}`,
+    `mobile=${diagnostics.isLikelyMobileDevice}`,
+    `touch=${diagnostics.hasTouchSupport}`,
+    `maxTouchPoints=${diagnostics.maxTouchPoints}`,
+    `readyState=${diagnostics.documentReadyState ?? "unknown"}`,
+    `visibility=${diagnostics.visibilityState ?? "unknown"}`,
+    `viewport="${diagnostics.viewportMetaContent ?? "missing"}"`,
+    `size=${size}`,
+    diagnostics.path ? `path=${diagnostics.path}` : null,
+  ]
+    .filter(Boolean)
+    .join("; ");
+}
+
+function formatRewardedAdGptDiagnostics(
+  diagnostics: RewardedAdGptDiagnostics | null,
+): string {
+  if (!diagnostics) return "gpt diagnostics unavailable";
+
+  return [
+    `scriptPresent=${diagnostics.matchingScriptPresent}`,
+    `scriptCount=${diagnostics.matchingScriptTagCount}`,
+    `hasGoogletag=${diagnostics.hasWindowGoogletag}`,
+    `apiReady=${diagnostics.apiReady}`,
+    `pubadsReady=${diagnostics.pubadsReady}`,
+    `hasDefineOutOfPageSlot=${diagnostics.hasDefineOutOfPageSlot}`,
+    `rewardedEnum=${diagnostics.rewardedEnumValue ?? "missing"}`,
+    `cmdLength=${diagnostics.cmdLength ?? "n/a"}`,
+    `servicesEnabledByApp=${diagnostics.servicesEnabledByApp}`,
+  ].join("; ");
+}
+
+function buildUnsupportedSlotDetail(
+  debug: RewardedAdDebugSnapshot,
+): string {
+  const notes = [...(debug.notes ?? [])];
+  if (debug.pageAtSlotAttempt?.likelyUnsupportedReasons.length) {
+    notes.push(
+      `pageHints=${debug.pageAtSlotAttempt.likelyUnsupportedReasons.join(",")}`,
+    );
+  } else {
+    notes.push(
+      "pageHints=no_obvious_page_level_issue",
+      "remainingLikelyCauses=browser_or_webview_support_limit,gam_non_instream_block,ad_unit_or_line_item_setup",
+    );
+  }
+
+  return [
+    "defineOutOfPageSlot returned null",
+    formatRewardedAdPageDiagnostics(debug.pageAtSlotAttempt ?? debug.pageAtRequest),
+    formatRewardedAdGptDiagnostics(debug.gptAtSlotAttempt ?? debug.gptAfterLoad ?? debug.gptBeforeLoad),
+    `adUnitPath=${debug.adUnitPath ?? "missing"}`,
+    `providerMode=${debug.providerMode}`,
+    notes.join("; "),
+  ].join("; ");
+}
+
+function logRewardedAdDiagnostics(
+  message: string,
+  diagnostics: RewardedAdPageDiagnostics | null = null,
+) {
+  if (typeof console === "undefined") return;
+  if (diagnostics) {
+    console.warn(`[rewardedAds] ${message}`, diagnostics);
+    return;
+  }
+  console.warn(`[rewardedAds] ${message}`);
+}
+
 function getWindowGoogletag():
   | (Partial<GoogletagApi> & { cmd?: Array<() => void> })
   | undefined {
@@ -426,13 +773,32 @@ class WebGptRewardedAdAdapter implements RewardedAdAdapter {
   async requestRewardedAd(
     placement: RewardedAdPlacement,
   ): Promise<RewardedAdResult> {
+    const baseDebug: RewardedAdDebugSnapshot = {
+      requestedPath:
+        typeof window !== "undefined" ? window.location.pathname : null,
+      requestedHref:
+        typeof window !== "undefined" ? window.location.href : null,
+      providerMode: this.config.resolvedProviderMode,
+      providerModeOverride: this.config.providerModeOverride,
+      configuredProviderMode: this.config.configuredProviderMode,
+      adUnitPath: this.config.adUnitPaths[placement],
+      pageAtRequest: getRewardedAdPageDiagnostics(),
+      gptBeforeLoad: getRewardedAdGptDiagnostics(this.config.gptScriptUrl),
+      notes: [],
+    };
     const adUnitPath = this.config.adUnitPaths[placement];
     if (!adUnitPath) {
+      const details = "missing GAM rewarded ad unit path";
+      logRewardedAdDiagnostics(`[${placement}] ${details}`);
       return {
         placement,
         provider: "web-gpt-rewarded",
         status: "unsupported",
-        details: "missing GAM rewarded ad unit path",
+        details,
+        debug: {
+          ...baseDebug,
+          notes: [...(baseDebug.notes ?? []), "config_missing_ad_unit_path"],
+        },
       };
     }
 
@@ -453,11 +819,28 @@ class WebGptRewardedAdAdapter implements RewardedAdAdapter {
             ? "timeout"
             : "error",
         details,
+        debug: {
+          ...baseDebug,
+          gptAfterLoad: getRewardedAdGptDiagnostics(this.config.gptScriptUrl),
+          notes: [
+            ...(baseDebug.notes ?? []),
+            "gpt_load_failed",
+            `gpt_load_error=${details}`,
+          ],
+        },
       };
     }
 
     return new Promise<RewardedAdResult>((resolve) => {
       const run = () => {
+        const debugAtSlotAttempt: RewardedAdDebugSnapshot = {
+          ...baseDebug,
+          gptAfterLoad: getRewardedAdGptDiagnostics(this.config.gptScriptUrl),
+          gptAtSlotAttempt: getRewardedAdGptDiagnostics(this.config.gptScriptUrl),
+          pageAtSlotAttempt: getRewardedAdPageDiagnostics(),
+          slotFormatRequested: googletag.enums.OutOfPageFormat.REWARDED ?? null,
+          notes: [...(baseDebug.notes ?? [])],
+        };
         const pubads = googletag.pubads();
         const slot = googletag.defineOutOfPageSlot(
           adUnitPath,
@@ -465,11 +848,24 @@ class WebGptRewardedAdAdapter implements RewardedAdAdapter {
         );
 
         if (!slot) {
+          const debug = {
+            ...debugAtSlotAttempt,
+            slotReturnedNull: true,
+            notes: [
+              ...(debugAtSlotAttempt.notes ?? []),
+              "slot_creation_returned_null",
+            ],
+          };
+          logRewardedAdDiagnostics(
+            `[${placement}] rewarded slot is unsupported on this page or device`,
+            debug.pageAtSlotAttempt ?? debug.pageAtRequest,
+          );
           resolve({
             placement,
             provider: "web-gpt-rewarded",
             status: "unsupported",
-            details: "rewarded slot is unsupported on this page or device",
+            details: buildUnsupportedSlotDetail(debug),
+            debug,
           });
           return;
         }
@@ -485,6 +881,14 @@ class WebGptRewardedAdAdapter implements RewardedAdAdapter {
             provider: "web-gpt-rewarded",
             status: "timeout",
             details: "rewarded slot timed out before completion",
+            debug: {
+              ...debugAtSlotAttempt,
+              slotReturnedNull: false,
+              notes: [
+                ...(debugAtSlotAttempt.notes ?? []),
+                "slot_request_timeout",
+              ],
+            },
           });
         }, this.config.requestTimeoutMs);
 
@@ -512,7 +916,13 @@ class WebGptRewardedAdAdapter implements RewardedAdAdapter {
             | GoogletagSlotRenderEndedEvent,
         ) => event.slot === slot;
 
-        const onReady = (event: GoogletagRewardedReadyEvent | GoogletagSlotRenderEndedEvent | GoogletagRewardedGrantedEvent | GoogletagRewardedClosedEvent) => {
+        const onReady = (
+          event:
+            | GoogletagRewardedReadyEvent
+            | GoogletagSlotRenderEndedEvent
+            | GoogletagRewardedGrantedEvent
+            | GoogletagRewardedClosedEvent,
+        ) => {
           if (!("makeRewardedVisible" in event) || !isTargetSlot(event)) return;
           const shown = event.makeRewardedVisible();
           if (!shown) {
@@ -521,27 +931,68 @@ class WebGptRewardedAdAdapter implements RewardedAdAdapter {
               provider: "web-gpt-rewarded",
               status: "error",
               details: "rewarded slot failed to become visible",
+              debug: {
+                ...debugAtSlotAttempt,
+                slotReturnedNull: false,
+                notes: [
+                  ...(debugAtSlotAttempt.notes ?? []),
+                  "rewarded_visible_failed",
+                ],
+              },
             });
           }
         };
 
-        const onGranted = (event: GoogletagRewardedReadyEvent | GoogletagSlotRenderEndedEvent | GoogletagRewardedGrantedEvent | GoogletagRewardedClosedEvent) => {
+        const onGranted = (
+          event:
+            | GoogletagRewardedReadyEvent
+            | GoogletagSlotRenderEndedEvent
+            | GoogletagRewardedGrantedEvent
+            | GoogletagRewardedClosedEvent,
+        ) => {
           if (!("payload" in event) || !isTargetSlot(event)) return;
           rewardGranted = true;
         };
 
-        const onClosed = (event: GoogletagRewardedReadyEvent | GoogletagSlotRenderEndedEvent | GoogletagRewardedGrantedEvent | GoogletagRewardedClosedEvent) => {
-          if (!isTargetSlot(event) || "isEmpty" in event || "payload" in event || "makeRewardedVisible" in event) {
+        const onClosed = (
+          event:
+            | GoogletagRewardedReadyEvent
+            | GoogletagSlotRenderEndedEvent
+            | GoogletagRewardedGrantedEvent
+            | GoogletagRewardedClosedEvent,
+        ) => {
+          if (
+            !isTargetSlot(event) ||
+            "isEmpty" in event ||
+            "payload" in event ||
+            "makeRewardedVisible" in event
+          ) {
             return;
           }
           finalize({
             placement,
             provider: "web-gpt-rewarded",
             status: rewardGranted ? "rewarded" : "cancelled",
+            debug: {
+              ...debugAtSlotAttempt,
+              slotReturnedNull: false,
+              notes: [
+                ...(debugAtSlotAttempt.notes ?? []),
+                rewardGranted
+                  ? "reward_granted_before_close"
+                  : "closed_without_reward",
+              ],
+            },
           });
         };
 
-        const onRenderEnded = (event: GoogletagRewardedReadyEvent | GoogletagSlotRenderEndedEvent | GoogletagRewardedGrantedEvent | GoogletagRewardedClosedEvent) => {
+        const onRenderEnded = (
+          event:
+            | GoogletagRewardedReadyEvent
+            | GoogletagSlotRenderEndedEvent
+            | GoogletagRewardedGrantedEvent
+            | GoogletagRewardedClosedEvent,
+        ) => {
           if (!("isEmpty" in event) || !isTargetSlot(event)) return;
           if (!event.isEmpty) return;
           finalize({
@@ -549,6 +1000,14 @@ class WebGptRewardedAdAdapter implements RewardedAdAdapter {
             provider: "web-gpt-rewarded",
             status: "no_fill",
             details: "rewarded slot returned no fill",
+            debug: {
+              ...debugAtSlotAttempt,
+              slotReturnedNull: false,
+              notes: [
+                ...(debugAtSlotAttempt.notes ?? []),
+                "slot_render_ended_empty",
+              ],
+            },
           });
         };
 
@@ -650,7 +1109,12 @@ export function setRewardedAdProviderModeOverride(
 }
 
 export function getRewardedAdRuntimeDebugInfo() {
-  return readRuntimeConfig();
+  const config = readRuntimeConfig();
+  return {
+    ...config,
+    pageDiagnostics: getRewardedAdPageDiagnostics(),
+    gptDiagnostics: getRewardedAdGptDiagnostics(config.gptScriptUrl),
+  };
 }
 
 export function getRewardedAdAvailability(
@@ -693,11 +1157,13 @@ export function getRewardedAdAvailability(
   ) {
     return {
       placement,
-      isSupported: false,
+      isSupported: true,
       providerMode: config.resolvedProviderMode,
-      provider: lastAttempt.provider,
+      provider,
       source: "last_result",
-      details: lastAttempt.details,
+      details: lastAttempt.details
+        ? `last unsupported result: ${lastAttempt.details}`
+        : "last rewarded attempt ended unsupported",
     };
   }
 
@@ -732,6 +1198,10 @@ export function getLastRewardedAdAttempt():
       provider: parsed.provider as RewardedAdProvider,
       status: parsed.status as RewardedAdStatus,
       details: typeof parsed.details === "string" ? parsed.details : undefined,
+      debug:
+        parsed.debug && typeof parsed.debug === "object"
+          ? (parsed.debug as RewardedAdDebugSnapshot)
+          : undefined,
       requestedAtMs:
         typeof parsed.requestedAtMs === "number" ? parsed.requestedAtMs : 0,
       finishedAtMs:

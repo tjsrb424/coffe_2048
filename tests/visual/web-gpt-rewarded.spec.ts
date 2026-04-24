@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import {
   REWARDED_AD_GPT_OFFLINE_AD_UNIT_PATH_OVERRIDE_STORAGE_KEY,
   REWARDED_AD_GPT_PUZZLE_AD_UNIT_PATH_OVERRIDE_STORAGE_KEY,
+  REWARDED_AD_LAST_RESULT_STORAGE_KEY,
   REWARDED_AD_PROVIDER_OVERRIDE_STORAGE_KEY,
 } from "../../src/lib/ads/rewardedAds";
 import {
@@ -323,11 +324,20 @@ test("web GPT no fill and unsupported fallback keep reward unclaimed", async ({
     .getByRole("button", { name: "광고 보고 코인+원두 x2" })
     .click();
   await expect(
-    unsupportedDialog.getByText("이 환경에서는 보상형 광고를 지원하지 않아요. 기본 보상은 바로 받을 수 있어요."),
+    unsupportedDialog.getByText(
+      "이번 요청에서는 보상형 광고를 열지 못했어요. 잠시 뒤 다시 시도하거나 기본 보상을 받아주세요.",
+    ),
   ).toBeVisible();
   await expect(
-    unsupportedDialog.getByRole("button", { name: "광고 x2 사용 불가" }),
-  ).toBeDisabled();
+    unsupportedDialog.getByRole("button", { name: "광고 보고 코인+원두 x2" }),
+  ).toBeEnabled();
+  const unsupportedAttempt = await unsupportedPage.evaluate((storageKey) => {
+    const raw = window.localStorage.getItem(storageKey);
+    return raw ? JSON.parse(raw) : null;
+  }, REWARDED_AD_LAST_RESULT_STORAGE_KEY);
+  expect(unsupportedAttempt?.details).toContain("defineOutOfPageSlot returned null");
+  expect(unsupportedAttempt?.debug?.slotReturnedNull).toBe(true);
+  expect(unsupportedAttempt?.debug?.notes).toContain("slot_creation_returned_null");
   await expect(unsupportedPage).toHaveURL(/\/puzzle\/?$/);
   await unsupportedPage.reload();
   const unsupportedDialogAfterReload = unsupportedPage.getByRole("dialog", {
@@ -335,11 +345,11 @@ test("web GPT no fill and unsupported fallback keep reward unclaimed", async ({
   });
   await expect(unsupportedDialogAfterReload).toBeVisible();
   await expect(
-    unsupportedDialogAfterReload.getByRole("button", { name: "광고 x2 사용 불가" }),
-  ).toBeDisabled();
+    unsupportedDialogAfterReload.getByRole("button", { name: "광고 보고 코인+원두 x2" }),
+  ).toBeEnabled();
   await expect(
     unsupportedDialogAfterReload.getByText(
-      "이 환경에서는 광고 x2를 사용할 수 없어요. 기본 보상으로 진행해 주세요.",
+      "광고 x2는 코인과 원두만 2배예요. 하트와 다른 메타 진척은 그대로예요.",
     ),
   ).toBeVisible();
   await unsupportedPage.close();

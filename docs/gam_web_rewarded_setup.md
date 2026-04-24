@@ -38,6 +38,9 @@
 - 광고 reward callback이 와도 즉시 자원 지급하지 않음
 - 최종 지급은 store claim 함수에서만 처리
 - `claimId` 기반 중복 수령 방지 유지
+- web rewarded는 inventory보다 먼저 **페이지 통합 조건**을 만족해야 하며,
+  현재 기준 루트 viewport는 `src/app/layout.tsx`에서
+  `width=device-width, initial-scale=1, viewport-fit=cover`로 유지한다
 
 관련 코드:
 - adapter: `src/lib/ads/rewardedAds.ts`
@@ -137,6 +140,20 @@
 - GitHub Pages 정적 배포는 빌드 시점 env를 읽으므로, workflow build step에 값이 있어야 한다
 - PR/시각 테스트용 workflow에는 현재 값을 강제로 넣지 않았다. dev/test 기본 mock 경로를 깨지 않기 위해서다
 
+### 5-3. 페이지 통합 필수 조건
+
+web rewarded는 env만 맞는다고 동작하지 않는다.
+
+- 루트 `<meta name="viewport">`가 모바일 최적화 + neutral zoom 조건을 만족해야 한다
+- 현재 프로젝트의 기준 viewport는 아래다
+  - `width=device-width`
+  - `initial-scale=1`
+  - `viewport-fit=cover`
+- `maximum-scale=1`, `user-scalable=no`처럼 zoom을 잠그는 값은
+  rewarded 지원 판정에 불리할 수 있으므로 기본 설정에서 제거한다
+- 실제 지원 판정은 `googletag.defineOutOfPageSlot(..., REWARDED)`가 맡고,
+  여기서 `null`이 나오면 inventory 이전에 페이지/기기 조건부터 의심해야 한다
+
 ---
 
 ## 6) GAM에서 준비해야 할 실제 항목
@@ -198,6 +215,24 @@
 - `error`
   - 광고 배수 미적용
   - 기본 수령 경로 유지
+
+현재 코드 기준 진단:
+- `defineOutOfPageSlot(..., REWARDED)`가 `null`이면
+  `src/lib/ads/rewardedAds.ts`가 단순 heuristic 후보만 남기지 않고 아래를 함께 detail/debug에 기록한다
+  - 실제 호출 시점 `path` / `href`
+  - `top-level window` 여부
+  - `document.readyState` / `visibilityState` / `focus`
+  - request 시점과 slot 시점의 `viewport`, `secure`, `mobile`, `touch`
+  - GPT script tag 존재 수
+  - `window.googletag` 존재 여부
+  - `apiReady` / `pubadsReady`
+  - `defineOutOfPageSlot` / `display` / rewarded enum availability
+  - app 기준 `enableServices()` 실행 여부
+  - 실제 `slotReturnedNull` 여부
+- `src/components/dev/DevDebugPanel.tsx`에서
+  현재 page diagnostics, 현재 GPT 상태, 마지막 광고 시도의 structured debug를 바로 확인할 수 있다
+- `getRewardedAdAvailability()`는 이제 `last unsupported` 결과만으로 CTA를 영구 비활성화하지 않는다.
+  config가 살아 있으면 재시도를 허용하고, 마지막 unsupported detail은 진단 힌트로만 남긴다
 
 필수 유지 조건:
 - 실패 상태에서 pending claim 삭제 금지
@@ -269,6 +304,12 @@
 - [ ] 지원 브라우저/디바이스에서 rewarded 노출 가능 여부 확인
 - [ ] 미지원 환경에서 `unsupported` fallback이 UX를 깨지 않는지 확인
 - [ ] no_fill 비율 모니터링 기준 수립(placement별)
+- [ ] `unsupported`가 뜨면 inventory보다 먼저 `DevDebugPanel`의
+      viewport/mobile/secure 진단과 마지막 detail을 확인
+- [ ] page/GPT 상태가 정상인데도 `slotReturnedNull=true`이면 아래 순서로 점검
+      1) GAM의 `Block non-instream video ads` 보호 비활성화 여부
+      2) rewarded ad unit / line item / inventory 연결
+      3) 실제 브라우저/웹뷰 조합 지원 범위
 
 ### 9-4. 회귀
 - [ ] `npm run typecheck`

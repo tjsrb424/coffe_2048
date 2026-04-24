@@ -89,7 +89,7 @@ export function PuzzleScreen() {
       case "no_fill":
         return "지금은 볼 수 있는 광고가 없어요. 기본 보상은 바로 받을 수 있어요.";
       case "unsupported":
-        return "이 환경에서는 보상형 광고를 지원하지 않아요. 기본 보상은 바로 받을 수 있어요.";
+        return "이번 요청에서는 보상형 광고를 열지 못했어요. 잠시 뒤 다시 시도하거나 기본 보상을 받아주세요.";
       case "error":
       default:
         return "광고를 지금 준비하지 못했어요. 잠시 뒤 다시 시도해 주세요.";

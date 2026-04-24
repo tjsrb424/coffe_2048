@@ -51,6 +51,8 @@
 - `requestRewardedAd(placement)` adapter 뒤에 `mock`, `web-gpt-rewarded`, `unsupported fallback` 분기 도입
 - web 1.0용 `GPT + GAM rewarded` 연결 구조 + env/config 주입 경로 반영
 - 현재 웹 테스트 환경에서 `web-gpt-rewarded` override가 실제로 `unsupported`로 끝날 수 있는 상태를 확인했고, 퍼즐 결과/오프라인 보상 UI는 이를 명확한 비지원 UX로 정리해 둔 상태
+- 루트 viewport는 현재 `width=device-width, initial-scale=1, viewport-fit=cover` 기준으로 정리돼 있고, `unsupported` detail/DevDebugPanel에는 viewport/mobile/secure 후보 원인이 남도록 보강된 상태
+- 최근 패스에서는 `defineOutOfPageSlot(..., REWARDED)` 직전/직후의 page/GPT state와 `slotReturnedNull`을 structured debug로 남기고, `last unsupported` 결과만으로 CTA를 미리 잠그지 않도록 완화한 상태
 - dev/debug provider override + mock outcome 토글
 - 1.0 출시선 문서 고정
 - `/shop` / `pass` / `liveOps` / placeholder BM 노출 정리
@@ -148,6 +150,10 @@
 - 이미 정리한 비출시 표면(`/shop`, `pass/liveOps`, placeholder BM`)이 다시 과노출되지 않도록 유지
 - `오프라인 보상 x2`, `퍼즐 결과 x2(코인+원두만)` 규칙을 해치지 않는 최소 정리
 - rewarded ad `unsupported`는 새로운 BM 확장 없이 명확한 실패/비지원 경로로만 유지할 것
+- web rewarded가 다시 `unsupported`면 store/claim을 건드리기 전에
+  `DevDebugPanel`의 page diagnostics + GPT 상태 + 마지막 `slotReturnedNull` debug를 먼저 확인할 것
+- page/GPT 상태가 정상인데도 `slotReturnedNull=true`가 반복되면,
+  코드보다 GAM의 `Block non-instream video ads`, rewarded ad unit/line item, 브라우저/웹뷰 지원 범위를 먼저 의심할 것
 - reward claim 중복 수령 방지 / 새로고침 안정성 / mock 경로를 깨지 않는 범위만 다룰 것
 - Figma 교체 전에 필요한 최소 셸 분리 또는 test anchor 유지 정리
 - 구조 리라이트 없이 Playwright에서 고정 가능한 범위만 다룰 것

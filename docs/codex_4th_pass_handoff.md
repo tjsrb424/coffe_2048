@@ -20,6 +20,7 @@
 이번 세션에서 현재 상태 기준으로 추가 반영된 파일은 아래다.
 
 ### 0-1-a. 최신 BM 최소 구현 반영 파일
+- `src/app/layout.tsx`
 - `src/lib/ads/rewardedAds.ts`
 - `src/stores/useAppStore.ts`
 - `src/features/meta/types/gameState.ts`
@@ -75,6 +76,11 @@
 - web rewarded가 지원되지 않거나 fill이 없으면 claim은 진행하지 않고 pending을 유지한 채 기본 보상 경로로 되돌린다.
 - `src/lib/ads/rewardedAds.ts`에는 placement별 `getRewardedAdAvailability()` helper를 추가해, config상 이미 `unsupported`이거나 같은 placement에서 `unsupported`가 한 번 확인된 뒤에는 UI가 광고 CTA를 계속 적극 노출하지 않도록 정리했다.
 - 현재 웹 테스트 환경에서는 provider를 `web-gpt-rewarded`로 강제해도 최종 결과가 `web-gpt-rewarded:unsupported`로 끝날 수 있으며, 이는 정상적인 지원 불가 케이스로 취급한다.
+- 이번 세션에서는 루트 viewport를 `width=device-width, initial-scale=1, viewport-fit=cover` 중심의 중립 형태로 정리하고, reward web 예시와 충돌 가능성이 있던 `maximum-scale=1`을 제거했다.
+- `src/lib/ads/rewardedAds.ts`는 이제 `defineOutOfPageSlot(..., REWARDED)`가 `null`일 때 단순 heuristic 후보만 남기지 않고, 실제 호출 시점의 `path`, `top-level window`, `document.readyState`, `visibilityState`, `focus`, `GPT script tag`, `window.googletag`, `apiReady`, `pubadsReady`, rewarded enum, `slotReturnedNull`을 detail/debug에 함께 남긴다.
+- `getRewardedAdAvailability()`는 `last unsupported` 결과만으로 CTA를 영구 비활성화하지 않게 바꿨다. config가 살아 있으면 재시도를 허용하고, 마지막 unsupported는 진단 힌트로만 남긴다.
+- `src/components/dev/DevDebugPanel.tsx`에서는 현재 page diagnostics, 현재 GPT 상태, 마지막 광고 시도의 structured debug(`slotReturnedNull`, notes, request path/ad unit`)를 함께 볼 수 있다.
+- page/GPT 상태가 정상인데도 모바일에서 계속 `slotReturnedNull=true`면, 코드/페이지보다는 GAM의 `Block non-instream video ads` 보호, rewarded ad unit/line item 연결, 실제 브라우저/웹뷰 지원 범위 쪽 근거가 더 강해진다.
 - `SessionResultModal`과 `OfflineSalesCard`는 같은 정책을 따른다. 즉 광고 가능 환경에서는 기존 x2 CTA를 유지하고, `unsupported` 환경에서는 짧은 안내 문구 + 비활성화 CTA로 정리한다.
 - 일반 유저용 notice에서는 `provider:status` 꼬리를 제거했고, 원인 식별은 `DevDebugPanel`의 마지막 광고 시도/세부 detail로 유지한다.
 - dev/debug 경로에서는 provider override(`mock / web-gpt-rewarded / unsupported / auto`)와 mock 결과(`success / cancel / error / no_fill / unsupported`)를 바꿔 QA할 수 있게 했다.
@@ -507,6 +513,7 @@ Cursor는 바로 구현부터 들어가지 말고 아래 순서로 시작해야 
 ### 10-8. web rewarded ad ops 리스크
 - 현재 레포는 GPT + GAM rewarded 연결 구조와 fallback 정책까지 닫혔지만, 실제 fill rate와 수익화는 ad unit / line item / inventory 설정 품질에 크게 좌우된다
 - web rewarded는 지원 환경 제약이 있어 일부 브라우저/기기에서는 `unsupported`가 정상 동작일 수 있다
+- 현재 코드에서 page-level 대표 점검 포인트는 `src/app/layout.tsx` viewport와 `DevDebugPanel` page diagnostics다. 여기서 neutral viewport / mobile heuristic / secure context가 맞는데도 `defineOutOfPageSlot(..., REWARDED)`가 계속 `null`이면, 그 다음은 실제 브라우저/기기 조합 또는 GAM 지원 범위를 의심하는 편이 맞다
 - 1.1에서 앱 패키징 + 모바일 SDK로 갈 때는 provider만 교체하면 되지만, claim/store 정책과 placement 2개는 유지하는 편이 안전하다
 
 ---
