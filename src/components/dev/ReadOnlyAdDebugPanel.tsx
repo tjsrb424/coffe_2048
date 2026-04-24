@@ -228,6 +228,16 @@ export function ReadOnlyAdDebugPanel({ className }: { className?: string }) {
                     </span>
                   </div>
                   <div>
+                    cmd length / services error:{" "}
+                    <span className="font-semibold">
+                      {formatMaybeText(gptDiagnostics?.cmdLength)}
+                    </span>
+                    {" / "}
+                    <span className="font-mono">
+                      {gptDiagnostics?.servicesEnableError ?? "(none)"}
+                    </span>
+                  </div>
+                  <div>
                     slot API / display / servicesEnabledByApp:{" "}
                     <span className="font-semibold">
                       {formatMaybeBoolean(gptDiagnostics?.hasDefineOutOfPageSlot)}
@@ -506,6 +516,16 @@ export function ReadOnlyAdDebugPanel({ className }: { className?: string }) {
                         {formatMaybeBoolean(lastLoadDiagnostics?.servicesEnabledByApp)}
                       </span>
                     </div>
+                  <div>
+                    load cmd length / services error:{" "}
+                    <span className="font-semibold">
+                      {formatMaybeText(lastLoadDiagnostics?.cmdLength)}
+                    </span>
+                    {" / "}
+                    <span className="font-mono">
+                      {lastLoadDiagnostics?.servicesEnableError ?? "(none)"}
+                    </span>
+                  </div>
                     <div>
                       load src / found after append:{" "}
                       <span className="break-all font-mono">

@@ -947,7 +947,6 @@ function isGoogletagBootstrapReady(
   value: Partial<GoogletagApi> | undefined,
 ): value is GoogletagApi {
   return !!value &&
-    Array.isArray(value.cmd) &&
     value.apiReady === true &&
     typeof value.pubads === "function" &&
     typeof value.defineOutOfPageSlot === "function" &&
@@ -972,7 +971,12 @@ function ensureWindowGoogletagShell() {
   if (typeof window === "undefined") return;
   const current = getWindowGoogletag();
   if (current?.cmd) return;
-  (window as typeof window & { googletag?: { cmd: Array<() => void> } }).googletag = {
+  (
+    window as typeof window & {
+      googletag?: Partial<GoogletagApi> & { cmd?: Array<() => void> };
+    }
+  ).googletag = {
+    ...(current ?? {}),
     cmd: current?.cmd ?? [],
   };
 }
@@ -989,6 +993,7 @@ async function ensureGoogletagScriptLoaded(
 
   const current = getWindowGoogletag();
   if (isGoogletagScriptLoaded(current, scriptUrl)) {
+    ensureWindowGoogletagShell();
     const existingReadyScript = document.querySelector(
       `script[src="${scriptUrl}"]`,
     ) as HTMLScriptElement | null;
@@ -1162,7 +1167,6 @@ function getBootstrapTimeoutClassification(
 ) {
   if (!googletag) return "bootstrap_missing_googletag";
   if (googletag.apiReady !== true) return "bootstrap_api_not_ready";
-  if (!Array.isArray(googletag.cmd)) return "bootstrap_cmd_missing";
   if (!googletag.enums?.OutOfPageFormat?.REWARDED) {
     return "bootstrap_rewarded_enum_missing";
   }
@@ -1174,6 +1178,9 @@ function getBootstrapTimeoutClassification(
     return "bootstrap_define_slot_missing";
   }
   if (typeof googletag.display !== "function") return "bootstrap_display_missing";
+  if (!Array.isArray(googletag.cmd)) {
+    return "bootstrap_cmd_missing_non_blocking";
+  }
   return "bootstrap_timed_out";
 }
 
@@ -1182,6 +1189,7 @@ async function ensureGoogletagBootstrapped(
   timeoutMs: number,
 ): Promise<GoogletagApi> {
   await ensureGoogletagScriptLoaded(scriptUrl, timeoutMs);
+  ensureWindowGoogletagShell();
   const current = getWindowGoogletag();
   if (isGoogletagBootstrapReady(current)) {
     updateGptBootstrapState(scriptUrl, timeoutMs, {

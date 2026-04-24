@@ -255,6 +255,15 @@ web rewarded는 env만 맞는다고 동작하지 않는다.
   더 이상 무조건 script load timeout으로 보지 않고,
   `bootstrapStarted` / `bootstrapCompleted` / `servicesEnableAttempted` /
   `servicesEnabledByApp` / `slotAttempted` / `slotReturnedNull`로 실제 정지 지점을 본다
+- 실제 모바일 Safari 배포에서 한 번 확인된 케이스는
+  `googletag.apiReady === true`와 필수 GPT API surface가 이미 살아 있는데도
+  `googletag.cmd` 배열이 없다는 이유만으로 bootstrap을 실패 처리한 경우였다.
+  지금은 `cmd`는 진단 신호로만 남기고, bootstrap 완료 조건은
+  `apiReady + pubads + enableServices + defineOutOfPageSlot + display + rewarded enum`
+  기준으로 본다.
+- `ensureWindowGoogletagShell()`도 기존 GPT 객체를 지우지 않고 merge 방식으로
+  `cmd`만 보강하도록 수정했다. 따라서 `cmd` 부재 자체가 다시 API surface 손실로
+  번지지 않는다.
 - 따라서 배포판에서 `web-gpt-rewarded:timeout`이 나더라도,
   이제는 최소한 아래를 구분할 수 있다
   - script stage timeout
@@ -336,6 +345,8 @@ web rewarded는 env만 맞는다고 동작하지 않는다.
       `scriptLoaded`, `bootstrapStarted`, `bootstrapCompleted`,
       `servicesEnableAttempted`, `servicesEnabledByApp`,
       `slotAttempted`, `slotReturnedNull`을 먼저 확인
+- [ ] 같은 패널에서 `cmd length`와 `servicesEnableError`를 함께 보고,
+      `cmd` 부재가 실제 blocker인지 이미 우회된 진단 신호인지 구분
 - [ ] `unsupported`가 뜨면 inventory보다 먼저 `DevDebugPanel`의
       viewport/mobile/secure 진단과 마지막 detail을 확인
 - [ ] page/GPT 상태가 정상인데도 `slotReturnedNull=true`이면 아래 순서로 점검

@@ -86,6 +86,9 @@
 - 최신 패스에서는 `gpt.js` 로더 진단도 강화했다. 이제 script append/reuse, append target, DOM tag 존재, `onload`/`onerror`/`timeout`, script src, timeout ms, CSP hint를 structured debug로 남긴다.
 - 이번 기준으로 timeout 진단은 `script load -> GPT bootstrap/services init -> rewarded slot creation` 3단계로 분리된다.
 - `web-gpt-rewarded:timeout`이 나면 이제 `scriptLoaded`, `bootstrapStarted`, `bootstrapCompleted`, `servicesEnableAttempted`, `servicesEnabledByApp`, `slotAttempted`, `slotReturnedNull`로 실제 정지 지점을 더 직접적으로 확인할 수 있다.
+- 실제 모바일 배포에서 드러난 핵심 원인은 `googletag.apiReady === true` 이후에도 `cmd` 배열이 없으면 bootstrap 완료를 막아 버린 점이었다. GPT 실객체는 이미 `pubads()/enableServices()/defineOutOfPageSlot()/display()`를 제공하고 있었는데, 코드가 `cmd` 부재를 fatal로 해석해서 `bootstrap_cmd_missing`에서 멈췄다.
+- 같은 구간에서 `ensureWindowGoogletagShell()`가 `cmd`만 남기고 기존 `googletag` 객체를 덮어쓸 위험도 있었다. 지금은 기존 GPT 메서드를 유지한 채 `cmd`만 보강하고, bootstrap 완료 조건은 `apiReady + 필수 API surface` 기준으로 안정화했다.
+- `ReadOnlyAdDebugPanel`에는 `cmd length`와 `servicesEnableError`도 노출해, 다음 이슈에서는 `cmd` 부재가 실제 blocker인지 단순 신호인지 바로 구분할 수 있다.
 - 안정화용으로 `preloadRewardedAdRuntime()`를 추가했고, 현재는 `PuzzleScreen`과 `OfflineSalesCard` surface mount 시점에서만 얇게 preload한다.
 - page/GPT 상태가 정상인데도 모바일에서 계속 `slotReturnedNull=true`면, 코드/페이지보다는 GAM의 `Block non-instream video ads` 보호, rewarded ad unit/line item 연결, 실제 브라우저/웹뷰 지원 범위 쪽 근거가 더 강해진다.
 - `SessionResultModal`과 `OfflineSalesCard`는 같은 정책을 따른다. 즉 광고 가능 환경에서는 기존 x2 CTA를 유지하고, `unsupported` 환경에서는 짧은 안내 문구 + 비활성화 CTA로 정리한다.
@@ -95,6 +98,7 @@
   - 오프라인 보상: 기본 수령 / 광고 2배 수령이 각각 1회만 가능하고 새로고침 뒤에도 중복 수령되지 않음
   - 퍼즐 결과: 광고 x2에서 코인 / 원두만 차이 나고 다른 메타 진척은 동일함
 - `tests/visual/web-gpt-rewarded.spec.ts`를 추가해 fake `googletag`로 web provider 경로의 success / cancelled / no_fill / unsupported fallback을 고정했다.
+- 같은 테스트 파일에 `apiReady=true`지만 `cmd`가 없는 fake GPT 케이스도 추가해, bootstrap이 더 이상 `bootstrap_cmd_missing`에서 멈추지 않고 `servicesEnabledByApp=true`, `slotAttempted=true`까지 진행되는 회귀를 고정했다.
 - 이번 세션에서는 1.0 범위 밖인 `/shop`, `pass/liveOps`, placeholder BM 표면이 일반 유저에게 1.0 기능처럼 보이지 않도록 노출 정책을 실제 UI에 반영했다.
 - 로비 상단 메뉴와 설정 화면에서 `/shop` 직접 진입을 제거하고, `/shop` route 자체는 QA/direct route 용 **비출시 데모 보관함**으로만 남겼다.
 - `/shop` 화면은 `오프라인 보상 x2`, `퍼즐 결과 x2(코인+원두만)`만 1.0 BM 범위라는 점을 명시하고, 광고 제거 / 스타터 팩 / 테마 / 꾸미기 표면은 `출시 후 예정`으로 비활성화했다.

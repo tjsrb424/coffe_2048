@@ -160,6 +160,9 @@
   `scriptLoaded`, `bootstrapStarted`, `bootstrapCompleted`,
   `servicesEnableAttempted`, `servicesEnabledByApp`,
   `slotAttempted`, `slotReturnedNull`과 script/CSP hint를 먼저 확인할 것
+- `googletag.apiReady === true`인데 `cmd length`만 비정상인 경우는
+  현재 코드에서는 bootstrap blocker가 아니다. 다시 같은 증상이 보이면
+  `servicesEnableError`, `slotAttempted`, `slotReturnedNull` 이후 단계부터 확인할 것
 - page/GPT 상태가 정상인데도 `slotReturnedNull=true`가 반복되면,
   코드보다 GAM의 `Block non-instream video ads`, rewarded ad unit/line item, 브라우저/웹뷰 지원 범위를 먼저 의심할 것
 - reward claim 중복 수령 방지 / 새로고침 안정성 / mock 경로를 깨지 않는 범위만 다룰 것

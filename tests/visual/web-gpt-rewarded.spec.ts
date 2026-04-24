@@ -17,8 +17,9 @@ const FIXED_TIME = "2026-04-23T16:00:00";
 async function installFakeGoogletag(
   page: Page,
   outcome: "rewarded" | "cancelled" | "error" | "no_fill" | "unsupported",
+  options?: { omitCmd?: boolean },
 ) {
-  await page.addInitScript((nextOutcome) => {
+  await page.addInitScript(({ nextOutcome, omitCmd }) => {
     type FakeSlot = {
       __id: string;
       addService: () => FakeSlot;
@@ -62,9 +63,8 @@ async function installFakeGoogletag(
       return slot;
     };
 
-    (window as typeof window & { googletag?: unknown }).googletag = {
+    const fakeGoogletag = {
       apiReady: true,
-      cmd: [],
       enums: {
         OutOfPageFormat: {
           REWARDED: "REWARDED",
@@ -114,7 +114,11 @@ async function installFakeGoogletag(
         return true;
       },
     };
-  }, outcome);
+    if (!omitCmd) {
+      (fakeGoogletag as { cmd?: Array<() => void> }).cmd = [];
+    }
+    (window as typeof window & { googletag?: unknown }).googletag = fakeGoogletag;
+  }, { nextOutcome: outcome, omitCmd: options?.omitCmd ?? false });
 }
 
 async function forceWebGptRewarded(page: Page) {
@@ -179,6 +183,65 @@ test("web GPT rewarded success drives offline x2 claim", async ({ page }) => {
   expect(afterClaim.app.playerResources.coins).toBe(1_000 + pendingCoins * 2);
   expect(afterClaim.app.cafeState.pendingOfflineReward).toBeNull();
   expect(afterClaim.app.cafeState.lastOfflineSaleCoins).toBe(pendingCoins * 2);
+});
+
+test("web GPT rewarded succeeds even when cmd queue is missing", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const nowMs = new Date(FIXED_TIME).getTime();
+
+  await installFixedClock(page, FIXED_TIME);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await installFakeGoogletag(page, "rewarded", { omitCmd: true });
+
+  await importDebugSaveBundle(
+    page,
+    buildDebugSaveBundle({
+      nowMs,
+      app: {
+        playerResources: {
+          coins: 100,
+          beans: 40,
+          hearts: 2,
+        },
+        meta: {
+          lastHeartRegenAtMs: nowMs,
+          lastSeenAtMs: nowMs,
+          pendingPuzzleRewardClaim: {
+            claimId: `puzzle-${nowMs}-640-512-16`,
+            generatedAtMs: nowMs,
+            score: 640,
+            highestTile: 512,
+            mergeCount: 16,
+            baseCoins: 64,
+            baseBeans: 16,
+            baseHearts: 1,
+          },
+        },
+      },
+    }),
+  );
+
+  await forceWebGptRewarded(page);
+  await page.goto("/puzzle");
+
+  const resultDialog = page.getByRole("dialog", { name: "수고했어요" });
+  await expect(resultDialog).toBeVisible();
+  await resultDialog
+    .getByRole("button", { name: "광고 보고 코인+원두 x2" })
+    .click();
+  await expect(page).toHaveURL(/\/lobby\/?$/);
+
+  const lastAttempt = await page.evaluate((storageKey) => {
+    const raw = window.localStorage.getItem(storageKey);
+    return raw ? JSON.parse(raw) : null;
+  }, REWARDED_AD_LAST_RESULT_STORAGE_KEY);
+  expect(lastAttempt?.status).toBe("rewarded");
+  expect(lastAttempt?.debug?.failureStage ?? null).toBeNull();
+  expect(lastAttempt?.debug?.slotAttempted).toBe(true);
+  expect(lastAttempt?.debug?.slotReturnedNull).toBe(false);
+  expect(lastAttempt?.debug?.gptAtSlotAttempt?.servicesEnabledByApp).toBe(true);
 });
 
 test("web GPT cancelled keeps puzzle claim pending", async ({ page }) => {
