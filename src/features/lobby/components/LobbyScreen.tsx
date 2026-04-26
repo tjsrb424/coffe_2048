@@ -45,6 +45,15 @@ import { CounterSheetTodayGuestHint } from "@/features/customers/components/Cust
 import { ResourceBar } from "./ResourceBar";
 import { LobbyPanelQuerySync } from "./LobbyPanelQuerySync";
 import { AccountLevelCard } from "./AccountLevelCard";
+import {
+  LOBBY_LAYOUT_BASE,
+  lobbyLayout,
+  mergeLobbyLayoutPatch,
+  type LobbyLayout,
+  type LobbyLayoutItem,
+  type LobbyLayoutKey,
+} from "@/features/lobby/config/lobbyLayout";
+import { LobbyTuningPanel } from "./LobbyTuningPanel";
 
 const LOBBY_BG_ASSET = publicAssetPath("/assets/lobby/lobby_bg_base.png");
 const LOBBY_TITLE_LOGO_ASSET = publicAssetPath("/assets/lobby/lobby_title_logo.png");
@@ -57,11 +66,64 @@ const LOBBY_CASHIER_TILE_ASSET = publicAssetPath("/assets/lobby/lobby_btn_cashie
 const LOBBY_SHOP_TILE_ASSET = publicAssetPath("/assets/lobby/lobby_btn_shop.png");
 const LOBBY_REFERENCE_OVERLAY_ASSET = publicAssetPath("/mock/lobby_reference.png");
 const LOBBY_OVERLAY_STORAGE_KEY = "coffee2048_lobby_overlay" as const;
+const LOBBY_OVERLAY_OPACITY_STORAGE_KEY =
+  "coffee2048_lobby_overlay_opacity" as const;
+const LOBBY_TUNING_LAYOUT_STORAGE_KEY = "coffee2048_lobby_tuning_layout" as const;
+const DEFAULT_LOBBY_OVERLAY_OPACITY = 0.3;
 
 type OpenSheet = {
   sheet: LobbySheetId;
   cafeSections?: CafeLoopSectionKey[];
 } | null;
+
+function clampOpacity(value: number) {
+  return Math.min(1, Math.max(0.05, value));
+}
+
+function isLocalhostDevHost() {
+  if (typeof window === "undefined") return false;
+  const hostname = window.location.hostname;
+  return (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "::1" ||
+    hostname.endsWith(".localhost")
+  );
+}
+
+function parseStoredLayout(): LobbyLayout {
+  if (typeof window === "undefined") return lobbyLayout;
+  try {
+    const stored = window.localStorage.getItem(LOBBY_TUNING_LAYOUT_STORAGE_KEY);
+    return stored ? mergeLobbyLayoutPatch(lobbyLayout, JSON.parse(stored)) : lobbyLayout;
+  } catch {
+    return lobbyLayout;
+  }
+}
+
+function persistTunedLayout(layout: LobbyLayout) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      LOBBY_TUNING_LAYOUT_STORAGE_KEY,
+      JSON.stringify(layout),
+    );
+  } catch {
+    // Tuning persistence is dev-only and should never affect lobby behavior.
+  }
+}
+
+function layoutItemStyle(item: LobbyLayoutItem): CSSProperties {
+  return {
+    left: `${(item.x / LOBBY_LAYOUT_BASE.width) * 100}%`,
+    top: `${(item.y / LOBBY_LAYOUT_BASE.height) * 100}%`,
+    width: `${(item.width / LOBBY_LAYOUT_BASE.width) * 100}%`,
+    transform: `scale(${item.scale})`,
+    transformOrigin: "top left",
+    zIndex: item.zIndex,
+    opacity: item.opacity ?? 1,
+  };
+}
 
 export function LobbyScreen() {
   useResetDocumentScrollOnMount();
@@ -80,24 +142,54 @@ export function LobbyScreen() {
   const [open, setOpen] = useState<OpenSheet>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showLobbyOverlay, setShowLobbyOverlay] = useState(false);
-  const canUseOverlayToggle = process.env.NODE_ENV !== "production";
+  const [lobbyOverlayOpacity, setLobbyOverlayOpacity] = useState(
+    DEFAULT_LOBBY_OVERLAY_OPACITY,
+  );
+  const [tunedLobbyLayout, setTunedLobbyLayout] =
+    useState<LobbyLayout>(lobbyLayout);
+  const [selectedLayoutKey, setSelectedLayoutKey] =
+    useState<LobbyLayoutKey>("titleLogo");
+  const [showTuningPanel, setShowTuningPanel] = useState(false);
+  const isNonProductionBuild = process.env.NODE_ENV !== "production";
+  const [canUseLobbyDevTools, setCanUseLobbyDevTools] =
+    useState(isNonProductionBuild);
 
   useEffect(() => {
     router.prefetch("/puzzle");
   }, [router]);
 
   useEffect(() => {
-    if (!canUseOverlayToggle || typeof window === "undefined") return;
+    if (isNonProductionBuild) return;
+    setCanUseLobbyDevTools(isLocalhostDevHost());
+  }, [isNonProductionBuild]);
+
+  useEffect(() => {
+    if (!canUseLobbyDevTools || typeof window === "undefined") return;
     try {
       const search = new URLSearchParams(window.location.search);
       const queryEnabled = search.get("lobby_overlay") === "1";
+      const queryOpacityValue = search.get("lobby_overlay_opacity");
+      const queryOpacity =
+        queryOpacityValue == null ? Number.NaN : Number(queryOpacityValue);
       const storedEnabled =
         window.localStorage.getItem(LOBBY_OVERLAY_STORAGE_KEY) === "1";
+      const storedOpacityValue = window.localStorage.getItem(
+        LOBBY_OVERLAY_OPACITY_STORAGE_KEY,
+      );
+      const storedOpacity =
+        storedOpacityValue == null ? Number.NaN : Number(storedOpacityValue);
       setShowLobbyOverlay(queryEnabled || storedEnabled);
+      if (Number.isFinite(queryOpacity)) {
+        setLobbyOverlayOpacity(clampOpacity(queryOpacity));
+      } else if (Number.isFinite(storedOpacity)) {
+        setLobbyOverlayOpacity(clampOpacity(storedOpacity));
+      }
+      setTunedLobbyLayout(parseStoredLayout());
     } catch {
       setShowLobbyOverlay(false);
+      setLobbyOverlayOpacity(DEFAULT_LOBBY_OVERLAY_OPACITY);
     }
-  }, [canUseOverlayToggle]);
+  }, [canUseLobbyDevTools]);
 
   const openCafeFromQuery = useCallback(() => {
     setOpen({ sheet: "showcase", cafeSections: ["craft"] });
@@ -111,12 +203,11 @@ export function LobbyScreen() {
 
   const closeSheet = useCallback(() => setOpen(null), []);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
-  const toggleLobbyOverlay = useCallback(() => {
-    if (!canUseOverlayToggle || typeof window === "undefined") return;
-    setShowLobbyOverlay((current) => {
-      const next = !current;
+  const setLobbyOverlayEnabled = useCallback(
+    (enabled: boolean) => {
+      if (!canUseLobbyDevTools || typeof window === "undefined") return;
       try {
-        if (next) {
+        if (enabled) {
           window.localStorage.setItem(LOBBY_OVERLAY_STORAGE_KEY, "1");
         } else {
           window.localStorage.removeItem(LOBBY_OVERLAY_STORAGE_KEY);
@@ -124,9 +215,107 @@ export function LobbyScreen() {
       } catch {
         // Overlay debug state should never affect lobby behavior.
       }
-      return next;
-    });
-  }, [canUseOverlayToggle]);
+      setShowLobbyOverlay(enabled);
+    },
+    [canUseLobbyDevTools],
+  );
+  const toggleLobbyOverlay = useCallback(() => {
+    setLobbyOverlayEnabled(!showLobbyOverlay);
+  }, [setLobbyOverlayEnabled, showLobbyOverlay]);
+  const changeLobbyOverlayOpacity = useCallback(
+    (opacity: number) => {
+      if (!canUseLobbyDevTools || typeof window === "undefined") return;
+      const next = clampOpacity(opacity);
+      setLobbyOverlayOpacity(next);
+      try {
+        window.localStorage.setItem(
+          LOBBY_OVERLAY_OPACITY_STORAGE_KEY,
+          String(next),
+        );
+      } catch {
+        // Overlay debug state should never affect lobby behavior.
+      }
+    },
+    [canUseLobbyDevTools],
+  );
+  const changeLayoutItem = useCallback(
+    (key: LobbyLayoutKey, patch: Partial<LobbyLayoutItem>) => {
+      if (!canUseLobbyDevTools) return;
+      setTunedLobbyLayout((current) => {
+        const next = {
+          ...current,
+          [key]: {
+            ...current[key],
+            ...patch,
+          },
+        };
+        persistTunedLayout(next);
+        return next;
+      });
+    },
+    [canUseLobbyDevTools],
+  );
+  const resetTunedLayout = useCallback(() => {
+    setTunedLobbyLayout(lobbyLayout);
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.removeItem(LOBBY_TUNING_LAYOUT_STORAGE_KEY);
+    } catch {
+      // Tuning persistence is dev-only and should never affect lobby behavior.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!canUseLobbyDevTools) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.defaultPrevented ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey
+      ) {
+        return;
+      }
+      const direction =
+        event.key === "ArrowLeft"
+          ? { x: -1, y: 0 }
+          : event.key === "ArrowRight"
+            ? { x: 1, y: 0 }
+            : event.key === "ArrowUp"
+              ? { x: 0, y: -1 }
+              : event.key === "ArrowDown"
+                ? { x: 0, y: 1 }
+                : null;
+      if (!direction) return;
+
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName.toLowerCase();
+      if (
+        tagName === "input" ||
+        tagName === "select" ||
+        tagName === "textarea" ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      const step = event.shiftKey ? 10 : 1;
+      changeLayoutItem(selectedLayoutKey, {
+        x: tunedLobbyLayout[selectedLayoutKey].x + direction.x * step,
+        y: tunedLobbyLayout[selectedLayoutKey].y + direction.y * step,
+      });
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [
+    canUseLobbyDevTools,
+    changeLayoutItem,
+    selectedLayoutKey,
+    tunedLobbyLayout,
+  ]);
 
   const title = open ? t(LOBBY_SHEET_TITLE_ID[open.sheet]) : "";
   const tagline = open ? t(LOBBY_SHEET_TAGLINE_ID[open.sheet]) : undefined;
@@ -176,7 +365,10 @@ export function LobbyScreen() {
           </div>
 
           {showLobbyOverlay ? (
-            <div className="pointer-events-none absolute inset-0 z-[60] opacity-30">
+            <div
+              className="pointer-events-none absolute inset-0 z-[60]"
+              style={{ opacity: lobbyOverlayOpacity }}
+            >
               <Image
                 src={LOBBY_REFERENCE_OVERLAY_ASSET}
                 alt=""
@@ -187,25 +379,22 @@ export function LobbyScreen() {
             </div>
           ) : null}
 
-          <div
-            className="absolute left-[4.2%] z-40"
-            style={{ top: "calc(env(safe-area-inset-top) + 0.9rem)" }}
-          >
+          <LobbyLayoutSlot item={tunedLobbyLayout.tierBadge}>
             <AccountLevelCard />
-          </div>
-          <div
-            className="absolute right-[4.8%] z-40"
-            style={{ top: "calc(env(safe-area-inset-top) + 1rem)" }}
-          >
+          </LobbyLayoutSlot>
+          <LobbyLayoutSlot item={tunedLobbyLayout.menuButton}>
             <LobbyTopMenu
               open={menuOpen}
               onToggle={() => setMenuOpen((v) => !v)}
               onClose={closeMenu}
               reduceMotion={reduceMotion}
             />
-          </div>
+          </LobbyLayoutSlot>
 
-          <div className="pointer-events-none absolute left-1/2 top-[4.15%] z-30 w-[57.5%] -translate-x-1/2">
+          <LobbyLayoutSlot
+            item={tunedLobbyLayout.titleLogo}
+            className="pointer-events-none"
+          >
             <div className="relative aspect-[497/304] w-full">
               <Image
                 src={LOBBY_TITLE_LOGO_ASSET}
@@ -216,10 +405,11 @@ export function LobbyScreen() {
                 className="object-contain object-center drop-shadow-[0_10px_24px_rgb(76_53_37_/_0.18)]"
               />
             </div>
-          </div>
+          </LobbyLayoutSlot>
           <h1 className="sr-only">{t("lobby.srOnly.todayShop")}</h1>
 
           <LobbyOpsDashboard
+            layout={tunedLobbyLayout}
             onOpenRoast={() => {
               if (soundOn) playRoasterOpen();
               openSheet("roast", ["roast"]);
@@ -267,14 +457,11 @@ export function LobbyScreen() {
             <OfflineSalesCard className="mb-0" />
           </div>
 
-          <div
-            className="absolute left-1/2 z-30 w-[66%] -translate-x-1/2"
-            style={{ bottom: "calc(env(safe-area-inset-bottom) + 0.95rem)" }}
-          >
+          <LobbyLayoutSlot item={tunedLobbyLayout.currencyBar}>
             <ResourceBar variant="compact" className="!mb-0 max-w-none" />
-          </div>
+          </LobbyLayoutSlot>
 
-          {canUseOverlayToggle ? (
+          {canUseLobbyDevTools ? (
             <button
               type="button"
               onClick={toggleLobbyOverlay}
@@ -284,8 +471,32 @@ export function LobbyScreen() {
               {showLobbyOverlay ? "Overlay On" : "Overlay Off"}
             </button>
           ) : null}
+          {canUseLobbyDevTools ? (
+            <button
+              type="button"
+              onClick={() => setShowTuningPanel((v) => !v)}
+              className="absolute left-3 z-[70] rounded-full bg-coffee-950/70 px-3 py-1.5 text-[11px] font-semibold text-cream-50 shadow-md backdrop-blur"
+              style={{ top: "calc(env(safe-area-inset-top) + 7.35rem)" }}
+            >
+              {showTuningPanel ? "Tune On" : "Tune Off"}
+            </button>
+          ) : null}
         </main>
       </div>
+
+      {canUseLobbyDevTools && showTuningPanel ? (
+        <LobbyTuningPanel
+          layout={tunedLobbyLayout}
+          selectedKey={selectedLayoutKey}
+          overlayEnabled={showLobbyOverlay}
+          overlayOpacity={lobbyOverlayOpacity}
+          onSelectedKeyChange={setSelectedLayoutKey}
+          onLayoutItemChange={changeLayoutItem}
+          onResetLayout={resetTunedLayout}
+          onOverlayEnabledChange={setLobbyOverlayEnabled}
+          onOverlayOpacityChange={changeLobbyOverlayOpacity}
+        />
+      ) : null}
 
       <LobbyBottomSheet
         open={open !== null}
@@ -392,6 +603,22 @@ export function LobbyScreen() {
   );
 }
 
+function LobbyLayoutSlot({
+  item,
+  className,
+  children,
+}: {
+  item: LobbyLayoutItem;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={cn("absolute", className)} style={layoutItemStyle(item)}>
+      {children}
+    </div>
+  );
+}
+
 function LobbyTopMenu({
   open,
   onToggle,
@@ -424,14 +651,14 @@ function LobbyTopMenu({
   }, [open, onClose]);
 
   return (
-    <div ref={wrapRef} className="relative z-20 flex justify-end">
+    <div ref={wrapRef} className="relative z-20 flex w-full justify-end">
       <button
         type="button"
         onClick={onToggle}
         aria-label="메뉴 열기"
         aria-expanded={open}
         className={cn(
-          "relative flex h-[3.35rem] w-[3.35rem] items-center justify-center overflow-hidden rounded-[1.15rem] transition-transform duration-150 ease-out active:scale-95",
+          "relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-[1.15rem] transition-transform duration-150 ease-out active:scale-95",
           open && "scale-[0.98]",
         )}
       >
@@ -439,7 +666,7 @@ function LobbyTopMenu({
           src={LOBBY_MENU_BUTTON_ASSET}
           alt=""
           fill
-          sizes="3.35rem"
+          sizes="(max-width: 768px) 12vw, 3.35rem"
           className="object-contain"
           priority
         />
@@ -510,12 +737,14 @@ function LobbyTopMenu({
 }
 
 function LobbyOpsDashboard({
+  layout,
   onOpenRoast,
   onOpenShowcase,
   onOpenCounter,
   onOpenShop,
   onOpenPuzzle,
 }: {
+  layout: LobbyLayout;
   onOpenRoast: () => void;
   onOpenShowcase: () => void;
   onOpenCounter: () => void;
@@ -527,45 +756,48 @@ function LobbyOpsDashboard({
     title: string;
     onClick: () => void;
     imageSrc: string;
-    style: CSSProperties;
+    layoutKey: LobbyLayoutKey;
   }> = [
     {
       key: "roast",
       title: t("lobby.sheet.roast.title"),
       onClick: onOpenRoast,
       imageSrc: LOBBY_ROASTER_TILE_ASSET,
-      style: { left: "4.45%", top: "16.1%", width: "43.65%" },
+      layoutKey: "roasterCard",
     },
     {
       key: "showcase",
       title: t("lobby.sheet.showcase.title"),
       onClick: onOpenShowcase,
       imageSrc: LOBBY_DRINK_TILE_ASSET,
-      style: { right: "4.45%", top: "16.1%", width: "43.65%" },
+      layoutKey: "drinkStationCard",
     },
     {
       key: "counter",
       title: t("lobby.tile.counter.title"),
       onClick: onOpenCounter,
       imageSrc: LOBBY_CASHIER_TILE_ASSET,
-      style: { left: "4.45%", top: "48.35%", width: "43.65%" },
+      layoutKey: "cashierCard",
     },
     {
       key: "shop",
       title: t("lobby.tile.shop.title"),
       onClick: onOpenShop,
       imageSrc: LOBBY_SHOP_TILE_ASSET,
-      style: { right: "4.45%", top: "48.35%", width: "43.65%" },
+      layoutKey: "shopCard",
     },
   ];
 
   return (
     <section>
-      <div
-        data-testid="lobby-reference-tile-grid"
-        className="absolute left-1/2 top-[16.45%] z-20 w-[97%] -translate-x-1/2"
+      <LobbyLayoutSlot
+        item={layout.shelfFrame}
+        className="pointer-events-none"
       >
-        <div className="relative mx-auto aspect-[824/1017] w-full">
+        <div
+          data-testid="lobby-reference-tile-grid"
+          className="relative mx-auto aspect-[824/1017] w-full"
+        >
           <Image
             src={LOBBY_TILE_FRAME_ASSET}
             alt=""
@@ -574,36 +806,38 @@ function LobbyOpsDashboard({
             className="object-contain drop-shadow-[0_20px_45px_rgb(82_58_43_/_0.18)]"
             priority
           />
-          {tileConfigs.map((tile) => (
-            <LobbyGraphicTile
-              key={tile.key}
-              dataTestId={`lobby-reference-tile-${tile.key}`}
-              title={tile.title}
-              imageSrc={tile.imageSrc}
-              onClick={tile.onClick}
-              style={tile.style}
-            />
-          ))}
         </div>
-      </div>
-      <button
-        type="button"
-        aria-label="PLAY"
-        onClick={onOpenPuzzle}
-        className="absolute left-1/2 top-[75.8%] z-30 block w-[66%] -translate-x-1/2 transition-transform duration-150 ease-out active:scale-[0.985]"
-      >
-        <span className="sr-only">PLAY</span>
-        <div className="relative aspect-[738/260] w-full">
-          <Image
-            src={LOBBY_PLAY_BUTTON_ASSET}
-            alt=""
-            fill
-            priority
-            sizes="(max-width: 768px) 66vw, 18rem"
-            className="object-contain drop-shadow-[0_14px_28px_rgb(91_69_47_/_0.22)]"
+      </LobbyLayoutSlot>
+      {tileConfigs.map((tile) => (
+        <LobbyLayoutSlot key={tile.key} item={layout[tile.layoutKey]}>
+          <LobbyGraphicTile
+            dataTestId={`lobby-reference-tile-${tile.key}`}
+            title={tile.title}
+            imageSrc={tile.imageSrc}
+            onClick={tile.onClick}
           />
-        </div>
-      </button>
+        </LobbyLayoutSlot>
+      ))}
+      <LobbyLayoutSlot item={layout.playButton}>
+        <button
+          type="button"
+          aria-label="PLAY"
+          onClick={onOpenPuzzle}
+          className="relative block w-full transition-transform duration-150 ease-out active:scale-[0.985]"
+        >
+          <span className="sr-only">PLAY</span>
+          <div className="relative aspect-[738/260] w-full">
+            <Image
+              src={LOBBY_PLAY_BUTTON_ASSET}
+              alt=""
+              fill
+              priority
+              sizes="(max-width: 768px) 66vw, 18rem"
+              className="object-contain drop-shadow-[0_14px_28px_rgb(91_69_47_/_0.22)]"
+            />
+          </div>
+        </button>
+      </LobbyLayoutSlot>
     </section>
   );
 }
@@ -614,14 +848,12 @@ function LobbyGraphicTile({
   onClick,
   className,
   imageSrc,
-  style,
 }: {
   dataTestId?: string;
   title: string;
   onClick?: () => void;
   className?: string;
   imageSrc: string;
-  style?: CSSProperties;
 }) {
   const content = (
     <div className="relative aspect-[412/593] w-full">
@@ -644,10 +876,9 @@ function LobbyGraphicTile({
         aria-label={title}
         onClick={onClick}
         className={cn(
-          "absolute block overflow-visible text-left transition-transform duration-150 ease-out active:scale-[0.985]",
+          "relative block w-full overflow-visible text-left transition-transform duration-150 ease-out active:scale-[0.985]",
           className,
         )}
-        style={style}
       >
         {content}
         <span className="sr-only">{title}</span>
@@ -658,8 +889,7 @@ function LobbyGraphicTile({
   return (
     <div
       data-testid={dataTestId}
-      className={cn("absolute overflow-visible", className)}
-      style={style}
+      className={cn("relative w-full overflow-visible", className)}
     >
       {content}
     </div>

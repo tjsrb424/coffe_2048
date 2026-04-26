@@ -93,21 +93,21 @@ export function AccountLevelCard() {
   }, [open]);
 
   return (
-    <div ref={wrapRef} className="relative z-30">
+    <div ref={wrapRef} className="relative z-30 w-full">
       <button
         type="button"
         aria-label={`레벨 ${account.level} 성장 열기`}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "relative grid h-[3.45rem] w-[3.45rem] place-items-center overflow-hidden rounded-full text-coffee-950 shadow-[0_12px_26px_rgb(72_50_35_/_0.16)] transition-transform duration-150 ease-out active:scale-95",
+          "relative grid aspect-square w-full place-items-center overflow-hidden rounded-full text-coffee-950 shadow-[0_12px_26px_rgb(72_50_35_/_0.16)] transition-transform duration-150 ease-out active:scale-95",
         )}
       >
         <Image
           src={LOBBY_TIER_BADGE_ASSET}
           alt=""
           fill
-          sizes="3.45rem"
+          sizes="(max-width: 768px) 12vw, 3.45rem"
           className="object-contain"
           priority
         />
