@@ -120,6 +120,7 @@ export function GlobalBgm() {
       if (!handler) return;
       window.removeEventListener("pointerdown", handler);
       window.removeEventListener("touchstart", handler);
+      window.removeEventListener("touchend", handler);
       window.removeEventListener("keydown", handler);
       gestureHandlerRef.current = null;
     };
@@ -257,7 +258,11 @@ export function GlobalBgm() {
       });
     };
 
-    const startOrSwitch = async (nextTrack: string) => {
+    const startOrSwitch = async (
+      nextTrack: string,
+      opts?: { fromUserGesture?: boolean },
+    ) => {
+      const fromUserGesture = !!opts?.fromUserGesture;
       const g = ensureGraph();
       if (!g) return;
       const { ctx, audio } = g;
@@ -266,22 +271,27 @@ export function GlobalBgm() {
       const armGestureResume = () => {
         if (gestureHandlerRef.current) return;
         const onFirstGesture = () => {
-          void doPlay();
+          // iOS: 제스처 스택 안에서 await를 최소화해야 play가 막히지 않음
+          void doPlay(true);
           detachGestureStart();
         };
         gestureHandlerRef.current = onFirstGesture;
         window.addEventListener("pointerdown", onFirstGesture, { passive: true });
         window.addEventListener("touchstart", onFirstGesture, { passive: true });
+        window.addEventListener("touchend", onFirstGesture, { passive: true });
         window.addEventListener("keydown", onFirstGesture);
       };
 
-      const doPlay = async () => {
+      const doPlay = async (gestureHint?: boolean) => {
+        const skipBufferWait = fromUserGesture || gestureHint;
         try {
           // ctx.resume()가 사용자 제스처 없이 실패하면 출력이 0이라 "BGM이 없음"처럼 들림
           if (ctx.state === "suspended") {
             await ctx.resume();
           }
-          await waitUntilPlayable(audio, nextSrc);
+          if (!skipBufferWait) {
+            await waitUntilPlayable(audio, nextSrc);
+          }
           await audio.play();
         } catch {
           armGestureResume();
@@ -351,24 +361,36 @@ export function GlobalBgm() {
     void startOrSwitch(track);
     armRetryStarts();
 
-    const onUnlockLike = () => {
+    let lastUserAudioKick = 0;
+    const onUserActivateAudio = () => {
+      if (!soundOn || !track) return;
+      const now = Date.now();
+      if (now - lastUserAudioKick < 140) return;
+      lastUserAudioKick = now;
+      void startOrSwitch(track, { fromUserGesture: true });
+    };
+    const onPassiveResume = () => {
       if (!soundOn || !track) return;
       void startOrSwitch(track);
     };
-    window.addEventListener("pointerdown", onUnlockLike, { passive: true });
-    window.addEventListener("touchstart", onUnlockLike, { passive: true });
-    window.addEventListener("keydown", onUnlockLike);
-    window.addEventListener("focus", onUnlockLike);
-    window.addEventListener("pageshow", onUnlockLike);
+    window.addEventListener("pointerdown", onUserActivateAudio, { passive: true });
+    window.addEventListener("touchstart", onUserActivateAudio, { passive: true });
+    window.addEventListener("touchend", onUserActivateAudio, { passive: true });
+    window.addEventListener("click", onUserActivateAudio);
+    window.addEventListener("keydown", onUserActivateAudio);
+    window.addEventListener("focus", onPassiveResume);
+    window.addEventListener("pageshow", onPassiveResume);
 
     return () => {
       detachGestureStart();
       clearRetryTimers();
-      window.removeEventListener("pointerdown", onUnlockLike);
-      window.removeEventListener("touchstart", onUnlockLike);
-      window.removeEventListener("keydown", onUnlockLike);
-      window.removeEventListener("focus", onUnlockLike);
-      window.removeEventListener("pageshow", onUnlockLike);
+      window.removeEventListener("pointerdown", onUserActivateAudio);
+      window.removeEventListener("touchstart", onUserActivateAudio);
+      window.removeEventListener("touchend", onUserActivateAudio);
+      window.removeEventListener("click", onUserActivateAudio);
+      window.removeEventListener("keydown", onUserActivateAudio);
+      window.removeEventListener("focus", onPassiveResume);
+      window.removeEventListener("pageshow", onPassiveResume);
     };
   }, [soundOn, track, targetVolume]);
 

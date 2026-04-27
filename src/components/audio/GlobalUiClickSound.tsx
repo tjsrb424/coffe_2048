@@ -18,7 +18,8 @@ export function GlobalUiClickSound() {
     if (typeof window === "undefined") return;
     if (!soundOn) return;
 
-    const onPointerDownCapture = (e: Event) => {
+    let lastUiClickAt = 0;
+    const onActivateCapture = (e: Event) => {
       const target = e.target as Element | null;
       if (!target) return;
       const el = target.closest(
@@ -27,12 +28,17 @@ export function GlobalUiClickSound() {
       if (!el) return;
       if (el.closest("[data-no-ui-click='true']")) return;
       if (isDisabledEl(el)) return;
+      const now = Date.now();
+      if (now - lastUiClickAt < 55) return;
+      lastUiClickAt = now;
       playUiClick();
     };
 
-    window.addEventListener("pointerdown", onPointerDownCapture, true);
+    window.addEventListener("pointerdown", onActivateCapture, true);
+    window.addEventListener("touchstart", onActivateCapture, true);
     return () => {
-      window.removeEventListener("pointerdown", onPointerDownCapture, true);
+      window.removeEventListener("pointerdown", onActivateCapture, true);
+      window.removeEventListener("touchstart", onActivateCapture, true);
     };
   }, [soundOn]);
 

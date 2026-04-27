@@ -53,7 +53,8 @@ function getWorkbenchOpenPool(): HTMLAudioElement[] | null {
 function getCounterOpenPool(): HTMLAudioElement[] | null {
   if (typeof window === "undefined") return null;
   if (!counterOpenPool) {
-    counterOpenPool = makeAudioPool(publicAssetPath("/sfx/counter-open.mp3"), 4, 0.84);
+    // 계산대 오픈 SFX만 체감 볼륨 절반 (0.84 → 0.42)
+    counterOpenPool = makeAudioPool(publicAssetPath("/sfx/counter-open.mp3"), 4, 0.42);
   }
   return counterOpenPool;
 }
@@ -103,9 +104,10 @@ export function warmSfx(): void {
 
 export function unlockSfx(): void {
   if (sfxUnlocked) return;
-  sfxUnlocked = true;
 
-  const audio = getClickPool()?.[0];
+  // playUiClick이 pool[0]부터 돌리므로, 언락 무음 재생은 마지막 슬롯으로 분리해 충돌 방지
+  const pool = getClickPool();
+  const audio = pool?.[CLICK_POOL_SIZE - 1] ?? pool?.[0];
   if (!audio) return;
   const previousMuted = audio.muted;
   const previousVolume = audio.volume;
@@ -120,6 +122,7 @@ export function unlockSfx(): void {
         audio.currentTime = 0;
         audio.muted = previousMuted;
         audio.volume = previousVolume;
+        sfxUnlocked = true;
       })
       .catch(() => {
         audio.muted = previousMuted;
@@ -132,6 +135,7 @@ export function unlockSfx(): void {
 }
 
 export function playUiClick(): void {
+  unlockSfx();
   const pool = getClickPool();
   const result = playFromPool(pool, clickCursor);
   clickCursor = result.nextCursor;

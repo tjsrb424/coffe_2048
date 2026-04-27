@@ -25,11 +25,13 @@ export function GlobalAudioWarmup() {
 
     window.addEventListener("pointerdown", onFirstGesture, true);
     window.addEventListener("touchstart", onFirstGesture, true);
+    window.addEventListener("touchend", onFirstGesture, true);
     window.addEventListener("keydown", onFirstGesture);
 
     return () => {
       window.removeEventListener("pointerdown", onFirstGesture, true);
       window.removeEventListener("touchstart", onFirstGesture, true);
+      window.removeEventListener("touchend", onFirstGesture, true);
       window.removeEventListener("keydown", onFirstGesture);
     };
   }, [soundOn]);
