@@ -16,10 +16,12 @@ export function GlobalUiClickSound() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (!soundOn) return;
 
     let lastUiClickAt = 0;
     const onActivateCapture = (e: Event) => {
+      // 설정 토글 직후에도 리스너를 다시 붙일 필요 없이 즉시 반영
+      if (!useAppStore.getState().settings.soundOn) return;
+
       const target = e.target as Element | null;
       if (!target) return;
       const el = target.closest(
@@ -36,9 +38,21 @@ export function GlobalUiClickSound() {
 
     window.addEventListener("pointerdown", onActivateCapture, true);
     window.addEventListener("touchstart", onActivateCapture, true);
+    // 일부 환경에서 pointer/touch가 누락되는 케이스를 보완
+    window.addEventListener("click", onActivateCapture, true);
+    // 키보드 활성화(Enter/Space)도 UI 클릭으로 취급
+    const onKeyDownCapture = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.key !== "Enter" && e.key !== " ") return;
+      onActivateCapture(e);
+    };
+    window.addEventListener("keydown", onKeyDownCapture, true);
+
     return () => {
       window.removeEventListener("pointerdown", onActivateCapture, true);
       window.removeEventListener("touchstart", onActivateCapture, true);
+      window.removeEventListener("click", onActivateCapture, true);
+      window.removeEventListener("keydown", onKeyDownCapture, true);
     };
   }, [soundOn]);
 

@@ -32,7 +32,7 @@ export type LobbyLayoutPatch = Partial<
 >;
 
 export const lobbyLayout: LobbyLayout = {
-  titleLogo: { x: 210, y: 72, width: 510, scale: 1, zIndex: 100 },
+  titleLogo: { x: 210, y: 72, width: 510, scale: 1, zIndex: 32 },
   tierBadge: { x: 44, y: 33, width: 159, scale: 1, zIndex: 40 },
   menuButton: { x: 801, y: 46, width: 116, scale: 1, zIndex: 40 },
   shelfFrame: {

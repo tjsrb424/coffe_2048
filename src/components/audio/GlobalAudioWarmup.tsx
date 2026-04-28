@@ -20,6 +20,7 @@ export function GlobalAudioWarmup() {
       unlockWebAudioPlinks();
       window.removeEventListener("pointerdown", onFirstGesture);
       window.removeEventListener("touchstart", onFirstGesture);
+      window.removeEventListener("touchend", onFirstGesture);
       window.removeEventListener("keydown", onFirstGesture);
     };
 

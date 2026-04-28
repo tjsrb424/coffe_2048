@@ -53,8 +53,8 @@ function getWorkbenchOpenPool(): HTMLAudioElement[] | null {
 function getCounterOpenPool(): HTMLAudioElement[] | null {
   if (typeof window === "undefined") return null;
   if (!counterOpenPool) {
-    // 계산대 오픈 SFX만 체감 볼륨 절반 (0.84 → 0.42)
-    counterOpenPool = makeAudioPool(publicAssetPath("/sfx/counter-open.mp3"), 4, 0.42);
+    // 계산대 오픈 SFX만 체감 볼륨 추가로 50% 감소 (0.42 → 0.21)
+    counterOpenPool = makeAudioPool(publicAssetPath("/sfx/counter-open.mp3"), 4, 0.21);
   }
   return counterOpenPool;
 }
