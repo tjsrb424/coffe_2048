@@ -15,33 +15,13 @@ import {
 } from "react";
 import { Button } from "@/components/ui/Button";
 import { useResetDocumentScrollOnMount } from "@/hooks/useResetDocumentScrollOnMount";
-import type { LobbySheetId } from "@/features/lobby/config/lobbyHotspots";
-import {
-  LOBBY_SHEET_DESCRIPTION_ID,
-  LOBBY_SHEET_TAGLINE_ID,
-  LOBBY_SHEET_TITLE_ID,
-} from "@/features/lobby/config/lobbySheetCopy";
-import { buildLobbySheetSummary } from "@/features/lobby/lib/lobbySheetSummary";
-import { totalMenuStock } from "@/features/meta/balance/cafeEconomy";
 import { publicAssetPath } from "@/lib/publicAssetPath";
 import { runSceneTransition } from "@/lib/runSceneTransition";
 import { playCounterOpen, playRoasterOpen, playWorkbenchOpen } from "@/lib/sfx";
 import { cn } from "@/lib/utils";
 import { t } from "@/locale/i18n";
-import { Card } from "@/components/ui/Card";
 import { useAppStore } from "@/stores/useAppStore";
-import {
-  CafeLoopSection,
-  type CafeLoopSectionKey,
-} from "./CafeLoopSection";
-import { CafeShopSection } from "./CafeShopSection";
-import { LobbyBottomSheet } from "./LobbyBottomSheet";
-import { RoasterSheetTopOverlap } from "./RoasterSheetTopOverlap";
-import { WorkbenchSheetTopOverlap } from "./WorkbenchSheetTopOverlap";
-import { CounterSheetTopOverlap } from "./CounterSheetTopOverlap";
-import { CounterSellPulseToast } from "./CounterSellPulseToast";
 import { OfflineSalesCard } from "./OfflineSalesCard";
-import { CounterSheetTodayGuestHint } from "@/features/customers/components/CustomerPresenceHints";
 import { ResourceBar } from "./ResourceBar";
 import { LobbyPanelQuerySync } from "./LobbyPanelQuerySync";
 import { AccountLevelCard } from "./AccountLevelCard";
@@ -70,11 +50,6 @@ const LOBBY_OVERLAY_OPACITY_STORAGE_KEY =
   "coffee2048_lobby_overlay_opacity" as const;
 const LOBBY_TUNING_LAYOUT_STORAGE_KEY = "coffee2048_lobby_tuning_layout" as const;
 const DEFAULT_LOBBY_OVERLAY_OPACITY = 0.3;
-
-type OpenSheet = {
-  sheet: LobbySheetId;
-  cafeSections?: CafeLoopSectionKey[];
-} | null;
 
 function clampOpacity(value: number) {
   return Math.min(1, Math.max(0.05, value));
@@ -132,14 +107,10 @@ export function LobbyScreen() {
     (s) => s.settings?.lobbyOnboardingSeen ?? false,
   );
   const patchSettings = useAppStore((s) => s.patchSettings);
-  const playerResources = useAppStore((s) => s.playerResources);
-  const puzzleProgress = useAppStore((s) => s.puzzleProgress);
-  const cafeState = useAppStore((s) => s.cafeState);
   const consumeHeart = useAppStore((s) => s.consumePuzzleHeart);
   const soundOn = useAppStore((s) => s.settings.soundOn);
   const router = useRouter();
 
-  const [open, setOpen] = useState<OpenSheet>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showLobbyOverlay, setShowLobbyOverlay] = useState(false);
   const [lobbyOverlayOpacity, setLobbyOverlayOpacity] = useState(
@@ -157,6 +128,10 @@ export function LobbyScreen() {
 
   useEffect(() => {
     router.prefetch("/puzzle");
+    router.prefetch("/lobby/roaster");
+    router.prefetch("/lobby/workbench");
+    router.prefetch("/lobby/counter");
+    router.prefetch("/lobby/shop");
   }, [router]);
 
   useEffect(() => {
@@ -199,16 +174,8 @@ export function LobbyScreen() {
   }, [canUseLobbyDevTools]);
 
   const openCafeFromQuery = useCallback(() => {
-    setOpen({ sheet: "showcase", cafeSections: ["craft"] });
-  }, []);
-
-  const openSheet = useCallback(
-    (sheet: LobbySheetId, cafeSections?: CafeLoopSectionKey[]) =>
-      setOpen({ sheet, cafeSections }),
-    [],
-  );
-
-  const closeSheet = useCallback(() => setOpen(null), []);
+    router.push("/lobby/workbench");
+  }, [router]);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   const setLobbyOverlayEnabled = useCallback(
     (enabled: boolean) => {
@@ -324,28 +291,6 @@ export function LobbyScreen() {
     tunedLobbyLayout,
   ]);
 
-  const title = open ? t(LOBBY_SHEET_TITLE_ID[open.sheet]) : "";
-  const tagline = open ? t(LOBBY_SHEET_TAGLINE_ID[open.sheet]) : undefined;
-  const description = open
-    ? LOBBY_SHEET_DESCRIPTION_ID[open.sheet]
-      ? t(LOBBY_SHEET_DESCRIPTION_ID[open.sheet]!)
-      : undefined
-    : undefined;
-
-  const summary = useMemo(() => {
-    if (!open) return "";
-    return buildLobbySheetSummary(open.sheet, {
-      playerResources,
-      puzzleProgress,
-      cafeState,
-    });
-  }, [open, playerResources, puzzleProgress, cafeState]);
-
-  const menuTotalStock = useMemo(
-    () => totalMenuStock(cafeState.menuStock),
-    [cafeState.menuStock],
-  );
-
   return (
     <>
       <Suspense fallback={null}>
@@ -419,18 +364,18 @@ export function LobbyScreen() {
             layout={tunedLobbyLayout}
             onOpenRoast={() => {
               if (soundOn) playRoasterOpen();
-              openSheet("roast", ["roast"]);
+              router.push("/lobby/roaster");
             }}
             onOpenShowcase={() => {
               if (soundOn) playWorkbenchOpen();
-              openSheet("showcase", ["craft"]);
+              router.push("/lobby/workbench");
             }}
             onOpenCounter={() => {
               if (soundOn) playCounterOpen();
-              openSheet("counter");
+              router.push("/lobby/counter");
             }}
             onOpenShop={() => {
-              openSheet("shop");
+              router.push("/lobby/shop");
             }}
             onOpenPuzzle={() => {
               if (!consumeHeart()) return;
@@ -506,108 +451,6 @@ export function LobbyScreen() {
           onOverlayOpacityChange={changeLobbyOverlayOpacity}
         />
       ) : null}
-
-      <LobbyBottomSheet
-        open={open !== null}
-        title={title}
-        tagline={tagline}
-        floatingNotice={
-          open?.sheet === "counter" ? <CounterSellPulseToast /> : undefined
-        }
-        floatingNoticeClassName={
-          open?.sheet === "counter"
-            ? "-translate-y-[calc(100%+8.5rem)] sm:-translate-y-[calc(100%+9.5rem)]"
-            : undefined
-        }
-        summary={
-          open?.sheet === "roast" ||
-          open?.sheet === "showcase" ||
-          open?.sheet === "counter"
-            ? undefined
-            : summary
-        }
-        description={description}
-        onClose={closeSheet}
-        topOverlap={
-          open?.sheet === "roast" ? (
-            <RoasterSheetTopOverlap />
-          ) : open?.sheet === "counter" ? (
-            <CounterSheetTopOverlap />
-          ) : open?.sheet === "showcase" ? (
-            <WorkbenchSheetTopOverlap />
-          ) : undefined
-        }
-        headerAlign={
-          open?.sheet === "roast" ||
-          open?.sheet === "showcase" ||
-          open?.sheet === "counter"
-            ? "center"
-            : "default"
-        }
-        titleSize={
-          open?.sheet === "roast" ||
-          open?.sheet === "showcase" ||
-          open?.sheet === "counter"
-            ? "xl"
-            : "default"
-        }
-        topOverlapHeaderPaddingClassName={
-          open?.sheet === "roast"
-            ? "pt-[9.25rem] sm:pt-[10.5rem]"
-            : open?.sheet === "counter"
-              ? "pt-[7rem] sm:pt-32"
-            : open?.sheet === "showcase"
-              ? /* 일러스트 불투명 부분과 겹치지 않도록: 투명 영역(상단 띠)에만 겹치게 패딩 확보 */
-                "pt-[7rem] sm:pt-32"
-              : undefined
-        }
-      >
-        {open?.sheet === "roast" && (
-          <CafeLoopSection sections={open.cafeSections ?? ["roast"]} />
-        )}
-        {open?.sheet === "showcase" && (
-          <CafeLoopSection sections={open.cafeSections ?? ["craft"]} />
-        )}
-        {open?.sheet === "counter" && (
-          <>
-            <CounterSheetTodayGuestHint />
-            {menuTotalStock === 0 ? (
-              <Card className="mb-4 border border-accent-soft/25 bg-cream-50/95 p-4 ring-1 ring-coffee-600/8">
-                <div className="text-xs font-semibold uppercase tracking-wide text-coffee-600/60">
-                  {t("lobby.counter.empty.title")}
-                </div>
-                <p className="mt-2 text-sm leading-relaxed text-coffee-800">
-                  {t("lobby.counter.empty.body")}
-                </p>
-                <Link
-                  href="/lobby?panel=cafe"
-                  className="mt-3 inline-flex w-full items-center justify-center rounded-2xl bg-cream-200/90 px-3 py-2.5 text-center text-xs font-semibold text-coffee-900 ring-1 ring-accent-soft/30 hover:bg-cream-200"
-                  onClick={closeSheet}
-                >
-                  {t("lobby.counter.empty.cta")}
-                </Link>
-              </Card>
-            ) : null}
-            <CafeLoopSection sections={["display"]} />
-          </>
-        )}
-        {open?.sheet === "shop" && <CafeShopSection />}
-        {open &&
-        open.sheet !== "puzzle" &&
-        open.sheet !== "roast" &&
-        open.sheet !== "shop" ? (
-          <p className="mt-4 text-center text-xs text-coffee-600/70">
-            <Link
-              href="/cafe"
-              className="font-semibold underline-offset-2 hover:underline"
-              onClick={closeSheet}
-            >
-              {t("lobby.cafeFallback.title")}
-            </Link>
-            {t("lobby.cafeFallback.suffix")}
-          </p>
-        ) : null}
-      </LobbyBottomSheet>
     </>
   );
 }
