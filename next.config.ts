@@ -15,15 +15,10 @@ const deployedBasePath =
     ? githubPagesBasePath
     : "");
 
-/** `output: "export"`는 production 빌드에서만 CI 플래그로 켠다. dev에서 켜면 오류 컴포넌트 누락 등이 날 수 있음 */
-const enableStaticExport =
-  process.env.NEXT_STATIC_EXPORT === "true" ||
-  (process.env.GITHUB_ACTIONS === "true" && isProdBuild);
-
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   allowedDevOrigins: ["192.168.50.8"],
-  ...(enableStaticExport ? { output: "export" as const } : {}),
+  output: "export",
   basePath: deployedBasePath,
   assetPrefix: deployedBasePath,
   env: {
