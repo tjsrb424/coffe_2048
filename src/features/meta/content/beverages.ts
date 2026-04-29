@@ -143,7 +143,13 @@ const BEVERAGE_SEEDS_BY_CATEGORY: Record<BeverageCategoryId, BeverageSeed[]> = {
     { id: "breve_latte", name: "브레베 라떼", description: "크림감이 진한 우유 커피.", rarity: "rare" },
   ],
   sweetLatte: [
-    { id: "vanilla_latte", name: "바닐라 라떼", description: "바닐라 향이 은은하게 남아요.", rarity: "uncommon" },
+    {
+      id: "vanilla_latte",
+      name: "바닐라 라떼",
+      description: "바닐라 향이 은은하게 남아요.",
+      rarity: "uncommon",
+      recipeId: "vanilla_latte",
+    },
     { id: "caramel_latte", name: "카라멜 라떼", description: "고소한 단맛을 올린 라떼.", rarity: "uncommon" },
     { id: "hazelnut_latte", name: "헤이즐넛 라떼", description: "견과 향이 부드럽게 퍼져요.", rarity: "uncommon" },
     { id: "honey_latte", name: "허니 라떼", description: "꿀의 따뜻한 단맛을 담아요.", rarity: "rare" },
@@ -153,7 +159,13 @@ const BEVERAGE_SEEDS_BY_CATEGORY: Record<BeverageCategoryId, BeverageSeed[]> = {
     { id: "salted_caramel_latte", name: "솔티드 카라멜 라떼", description: "짭조름한 끝맛이 있는 라떼.", rarity: "rare" },
   ],
   mochaDessert: [
-    { id: "mocha", name: "카페 모카", description: "초코와 샷이 만나는 기본 디저트.", rarity: "uncommon" },
+    {
+      id: "mocha",
+      name: "카페 모카",
+      description: "초코와 샷이 만나는 기본 디저트.",
+      rarity: "uncommon",
+      recipeId: "mocha",
+    },
     { id: "white_mocha", name: "화이트 모카", description: "부드럽고 달콤한 모카 변주.", rarity: "rare" },
     { id: "chocolate_latte", name: "초코 라떼", description: "커피 없이도 편안한 달콤함.", rarity: "uncommon" },
     {
@@ -169,7 +181,13 @@ const BEVERAGE_SEEDS_BY_CATEGORY: Record<BeverageCategoryId, BeverageSeed[]> = {
     { id: "dessert_con_panna", name: "디저트 콘파냐", description: "크림 위에 향을 짧게 남겨요.", rarity: "signature" },
   ],
   teaLatte: [
-    { id: "matcha_latte", name: "말차 라떼", description: "쌉싸름한 녹차와 우유의 균형.", rarity: "uncommon" },
+    {
+      id: "matcha_latte",
+      name: "말차 라떼",
+      description: "쌉싸름한 녹차와 우유의 균형.",
+      rarity: "uncommon",
+      recipeId: "matcha_latte",
+    },
     { id: "hojicha_latte", name: "호지차 라떼", description: "볶은 차 향이 따뜻하게 남아요.", rarity: "rare" },
     { id: "black_tea_latte", name: "홍차 라떼", description: "차분한 향의 우유 티.", rarity: "uncommon" },
     { id: "earl_grey_latte", name: "얼그레이 라떼", description: "베르가못 향이 은은한 라떼.", rarity: "rare" },
@@ -215,7 +233,13 @@ const BEVERAGE_SEEDS_BY_CATEGORY: Record<BeverageCategoryId, BeverageSeed[]> = {
     { id: "atelier_mocha", name: "아틀리에 모카", description: "공방처럼 정성스럽게 쌓은 모카.", rarity: "signature" },
     { id: "rose_vanilla_latte", name: "로즈 바닐라 라떼", description: "장미와 바닐라 향의 조용한 조합.", rarity: "signature" },
     { id: "coffee_blossom", name: "커피 블라썸", description: "커피 향이 꽃처럼 퍼지는 메뉴.", rarity: "signature" },
-    { id: "nutty_cloud", name: "너티 클라우드", description: "견과 향과 크림이 올라간 대표 메뉴.", rarity: "signature" },
+    {
+      id: "nutty_cloud",
+      name: "너티 클라우드",
+      description: "견과 향과 크림이 올라간 대표 메뉴.",
+      rarity: "signature",
+      recipeId: "nutty_cloud",
+    },
     { id: "cafe_2048_signature", name: "카페 2048 시그니처", description: "2048번째 잔을 기다리는 상징 메뉴.", rarity: "signature" },
   ],
   legendaryCollection: [
@@ -248,6 +272,10 @@ export const BEVERAGE_BY_ID: Record<BeverageId, BeverageDefinition> =
 export const BEVERAGE_ID_BY_RECIPE_ID: Record<DrinkMenuId, BeverageId> = {
   americano: "americano",
   latte: "latte",
+  vanilla_latte: "vanilla_latte",
+  mocha: "mocha",
+  matcha_latte: "matcha_latte",
+  nutty_cloud: "nutty_cloud",
   affogato: "affogato",
   morning_mist_latte: "morning_mist_latte",
   dawn_honey_shot: "dawn_honey_shot",

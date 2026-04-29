@@ -10,6 +10,10 @@ import { RECIPE_DEFINITIONS } from "@/features/meta/economy/recipes";
 export const STANDARD_MENU_ORDER: DrinkMenuId[] = [
   "americano",
   "latte",
+  "vanilla_latte",
+  "mocha",
+  "matcha_latte",
+  "nutty_cloud",
   "affogato",
 ];
 
@@ -33,6 +37,10 @@ export const MENU_ORDER: DrinkMenuId[] = [
 export const MENU_UNLOCK_CAFE_LEVEL: Record<DrinkMenuId, number> = {
   americano: RECIPE_DEFINITIONS.americano.levelRequired,
   latte: RECIPE_DEFINITIONS.latte.levelRequired,
+  vanilla_latte: RECIPE_DEFINITIONS.vanilla_latte.levelRequired,
+  mocha: RECIPE_DEFINITIONS.mocha.levelRequired,
+  matcha_latte: RECIPE_DEFINITIONS.matcha_latte.levelRequired,
+  nutty_cloud: RECIPE_DEFINITIONS.nutty_cloud.levelRequired,
   affogato: RECIPE_DEFINITIONS.affogato.levelRequired,
   morning_mist_latte: RECIPE_DEFINITIONS.morning_mist_latte.levelRequired,
   dawn_honey_shot: RECIPE_DEFINITIONS.dawn_honey_shot.levelRequired,
@@ -55,6 +63,10 @@ export const CAFE_ECONOMY = {
   sellPrice: {
     americano: PRICING_DEFINITIONS.americano.sellPrice,
     latte: PRICING_DEFINITIONS.latte.sellPrice,
+    vanilla_latte: PRICING_DEFINITIONS.vanilla_latte.sellPrice,
+    mocha: PRICING_DEFINITIONS.mocha.sellPrice,
+    matcha_latte: PRICING_DEFINITIONS.matcha_latte.sellPrice,
+    nutty_cloud: PRICING_DEFINITIONS.nutty_cloud.sellPrice,
     affogato: PRICING_DEFINITIONS.affogato.sellPrice,
     morning_mist_latte: PRICING_DEFINITIONS.morning_mist_latte.sellPrice,
     dawn_honey_shot: PRICING_DEFINITIONS.dawn_honey_shot.sellPrice,
