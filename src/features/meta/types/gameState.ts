@@ -15,7 +15,14 @@ export type PuzzleProgress = {
   totalRuns: number;
 };
 
-export type StandardDrinkMenuId = "americano" | "latte" | "affogato";
+export type StandardDrinkMenuId =
+  | "americano"
+  | "latte"
+  | "vanilla_latte"
+  | "mocha"
+  | "matcha_latte"
+  | "nutty_cloud"
+  | "affogato";
 
 export type TimeDrinkMenuId =
   | "morning_mist_latte"

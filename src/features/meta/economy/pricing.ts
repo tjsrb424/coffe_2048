@@ -10,6 +10,10 @@ import { RECIPE_DEFINITIONS } from "./recipes";
 const BASE_SELL_PRICE: Record<DrinkMenuId, number> = {
   americano: 10,
   latte: 18,
+  vanilla_latte: 28,
+  mocha: 30,
+  matcha_latte: 32,
+  nutty_cloud: 38,
   affogato: 28,
   morning_mist_latte: 34,
   dawn_honey_shot: 38,

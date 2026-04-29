@@ -33,8 +33,14 @@ const CORE_LEVEL_UNLOCKS: LevelUnlock[] = [
   {
     level: 1,
     title: "기본 레시피",
-    preview: "아메리카노 제작 가능",
-    recipeIds: ["americano"],
+    preview: "음료 제작대 샘플 레시피 제작 가능",
+    recipeIds: [
+      "americano",
+      "vanilla_latte",
+      "mocha",
+      "matcha_latte",
+      "nutty_cloud",
+    ],
   },
   {
     level: 2,
