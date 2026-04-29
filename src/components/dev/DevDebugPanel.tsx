@@ -172,7 +172,10 @@ export function DevDebugPanel({ className }: { className?: string }) {
           transition={{ type: "spring", stiffness: 420, damping: 32 }}
           className="pointer-events-auto mt-2 w-full max-w-[420px] min-w-0"
         >
-          <Card className="space-y-3 p-4">
+          <Card
+            className="space-y-3 overflow-y-auto overscroll-contain p-4"
+            style={{ maxHeight: "min(78dvh, 40rem)" }}
+          >
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-wide text-coffee-600/60">

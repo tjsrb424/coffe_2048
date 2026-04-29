@@ -28,7 +28,14 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ["var(--font-sans)", "system-ui", "sans-serif"],
+        sans: [
+          "GangwonEduAll",
+          "var(--font-sans)",
+          "Malgun Gothic",
+          "Apple SD Gothic Neo",
+          "system-ui",
+          "sans-serif",
+        ],
       },
       boxShadow: {
         card: "0 8px 28px rgba(42, 27, 18, 0.08)",

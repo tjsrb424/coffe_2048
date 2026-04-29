@@ -2,6 +2,54 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: "GangwonEduAll";
+  src: url("/fonts/GangwonEduAll-Light.ttf") format("truetype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "GangwonEduAll";
+  src: url("/fonts/GangwonEduAll-Light.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "GangwonEduAll";
+  src: url("/fonts/GangwonEduAll-Light.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "GangwonEduAll";
+  src: url("/fonts/GangwonEduAll-Bold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "GangwonEduAll";
+  src: url("/fonts/GangwonEduAll-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "GangwonEduAll";
+  src: url("/fonts/GangwonEduAll-Bold.ttf") format("truetype");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   color-scheme: light;
 }
@@ -14,6 +62,13 @@ body {
 
 body {
   @apply bg-cream-100 text-coffee-900 antialiased;
+  font-family:
+    "GangwonEduAll",
+    var(--font-sans),
+    "Malgun Gothic",
+    "Apple SD Gothic Neo",
+    system-ui,
+    sans-serif;
   background-image: radial-gradient(
       circle at 20% 10%,
       rgba(196, 154, 108, 0.12),

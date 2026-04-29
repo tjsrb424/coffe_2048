@@ -125,6 +125,12 @@ export function LobbyScreen() {
     useState(isNonProductionBuild);
   const [canUseLobbyDevTools, setCanUseLobbyDevTools] =
     useState(isNonProductionBuild);
+  /** 확장 프로그램이 폼 DOM에 속성을 주입하면 SSR HTML과 불일치 → 튜닝 패널은 마운트 후에만 렌더 */
+  const [tuningPanelClientReady, setTuningPanelClientReady] = useState(false);
+
+  useEffect(() => {
+    setTuningPanelClientReady(true);
+  }, []);
 
   useEffect(() => {
     router.prefetch("/puzzle");
@@ -362,16 +368,22 @@ export function LobbyScreen() {
 
           <LobbyOpsDashboard
             layout={tunedLobbyLayout}
-            onOpenRoast={() => {
+            onPressRoastSound={() => {
               if (soundOn) playRoasterOpen();
+            }}
+            onPressShowcaseSound={() => {
+              if (soundOn) playWorkbenchOpen();
+            }}
+            onPressCounterSound={() => {
+              if (soundOn) playCounterOpen();
+            }}
+            onOpenRoast={() => {
               router.push("/lobby/roaster");
             }}
             onOpenShowcase={() => {
-              if (soundOn) playWorkbenchOpen();
               router.push("/lobby/workbench");
             }}
             onOpenCounter={() => {
-              if (soundOn) playCounterOpen();
               router.push("/lobby/counter");
             }}
             onOpenShop={() => {
@@ -438,7 +450,7 @@ export function LobbyScreen() {
         </main>
       </div>
 
-      {canUseLobbyDevTools && showTuningPanel ? (
+      {canUseLobbyDevTools && showTuningPanel && tuningPanelClientReady ? (
         <LobbyTuningPanel
           layout={tunedLobbyLayout}
           selectedKey={selectedLayoutKey}
@@ -590,6 +602,9 @@ function LobbyTopMenu({
 
 function LobbyOpsDashboard({
   layout,
+  onPressRoastSound,
+  onPressShowcaseSound,
+  onPressCounterSound,
   onOpenRoast,
   onOpenShowcase,
   onOpenCounter,
@@ -597,6 +612,9 @@ function LobbyOpsDashboard({
   onOpenPuzzle,
 }: {
   layout: LobbyLayout;
+  onPressRoastSound: () => void;
+  onPressShowcaseSound: () => void;
+  onPressCounterSound: () => void;
   onOpenRoast: () => void;
   onOpenShowcase: () => void;
   onOpenCounter: () => void;
@@ -607,6 +625,7 @@ function LobbyOpsDashboard({
     key: "roast" | "showcase" | "counter" | "shop";
     title: string;
     onClick: () => void;
+    onPressSound?: () => void;
     imageSrc: string;
     layoutKey: LobbyLayoutKey;
   }> = [
@@ -614,6 +633,7 @@ function LobbyOpsDashboard({
       key: "roast",
       title: t("lobby.sheet.roast.title"),
       onClick: onOpenRoast,
+      onPressSound: onPressRoastSound,
       imageSrc: LOBBY_ROASTER_TILE_ASSET,
       layoutKey: "roasterCard",
     },
@@ -621,6 +641,7 @@ function LobbyOpsDashboard({
       key: "showcase",
       title: t("lobby.sheet.showcase.title"),
       onClick: onOpenShowcase,
+      onPressSound: onPressShowcaseSound,
       imageSrc: LOBBY_DRINK_TILE_ASSET,
       layoutKey: "drinkStationCard",
     },
@@ -628,6 +649,7 @@ function LobbyOpsDashboard({
       key: "counter",
       title: t("lobby.tile.counter.title"),
       onClick: onOpenCounter,
+      onPressSound: onPressCounterSound,
       imageSrc: LOBBY_CASHIER_TILE_ASSET,
       layoutKey: "cashierCard",
     },
@@ -667,6 +689,7 @@ function LobbyOpsDashboard({
             title={tile.title}
             imageSrc={tile.imageSrc}
             onClick={tile.onClick}
+            onPressSound={tile.onPressSound}
           />
         </LobbyLayoutSlot>
       ))}
@@ -698,12 +721,14 @@ function LobbyGraphicTile({
   dataTestId,
   title,
   onClick,
+  onPressSound,
   className,
   imageSrc,
 }: {
   dataTestId?: string;
   title: string;
   onClick?: () => void;
+  onPressSound?: () => void;
   className?: string;
   imageSrc: string;
 }) {
@@ -721,11 +746,27 @@ function LobbyGraphicTile({
   );
 
   if (onClick) {
+    const handlePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      if (e.currentTarget.disabled) return;
+      onPressSound?.();
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+      if (e.repeat) return;
+      if (e.key !== "Enter" && e.key !== " ") return;
+      if (e.currentTarget.disabled) return;
+      onPressSound?.();
+    };
+
     return (
       <button
         data-testid={dataTestId}
         type="button"
         aria-label={title}
+        data-no-ui-click={onPressSound ? "true" : undefined}
+        onPointerDown={handlePointerDown}
+        onKeyDown={handleKeyDown}
         onClick={onClick}
         className={cn(
           "relative block w-full overflow-visible text-left transition-transform duration-150 ease-out active:scale-[0.985]",

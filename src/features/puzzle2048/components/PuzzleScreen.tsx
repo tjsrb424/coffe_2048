@@ -208,6 +208,12 @@ export function PuzzleScreen() {
   const [selectedLayoutKey, setSelectedLayoutKey] =
     useState<PuzzleLayoutKey>("boardGrid");
   const [showTuningPanel, setShowTuningPanel] = useState(false);
+  /** 브라우저 확장이 폼에 속성 주입 시 SSR과 불일치 → 튜닝 패널은 마운트 후에만 렌더 */
+  const [tuningPanelClientReady, setTuningPanelClientReady] = useState(false);
+
+  useEffect(() => {
+    setTuningPanelClientReady(true);
+  }, []);
 
   useEffect(() => {
     if (isNonProductionBuild) return;
@@ -1056,7 +1062,7 @@ export function PuzzleScreen() {
         )}
       </AnimatePresence>
 
-      {canUsePuzzleDevTools && showTuningPanel ? (
+      {canUsePuzzleDevTools && showTuningPanel && tuningPanelClientReady ? (
         <PuzzleTuningPanel
           layout={tunedLayout}
           selectedKey={selectedLayoutKey}
