@@ -123,7 +123,7 @@ export function PuzzleTuningPanel({
   return (
     <div className="pointer-events-none fixed right-3 top-3 z-[120] w-[calc(100vw-1.5rem)] max-w-[22rem] text-coffee-950">
       <div
-        className="pointer-events-auto overflow-y-auto overscroll-contain rounded-3xl bg-cream-50/94 p-3 shadow-[0_18px_48px_rgb(42_27_18_/_0.18)] ring-1 ring-coffee-600/12 backdrop-blur-md"
+        className="pointer-events-auto overflow-y-auto overscroll-contain rounded-3xl bg-white p-3 shadow-[0_18px_48px_rgb(42_27_18_/_0.24)] ring-1 ring-coffee-600/18"
         style={{ maxHeight: "min(78dvh, 34rem)" }}
       >
         <div className="flex items-start justify-between gap-3">

@@ -14,6 +14,7 @@ import {
   useState,
 } from "react";
 import { Button } from "@/components/ui/Button";
+import { FrameExternalOverlayPortal } from "@/components/dev/FrameExternalOverlayPortal";
 import { useResetDocumentScrollOnMount } from "@/hooks/useResetDocumentScrollOnMount";
 import { publicAssetPath } from "@/lib/publicAssetPath";
 import { runSceneTransition } from "@/lib/runSceneTransition";
@@ -121,8 +122,7 @@ export function LobbyScreen() {
   const [selectedLayoutKey, setSelectedLayoutKey] =
     useState<LobbyLayoutKey>("titleLogo");
   const isNonProductionBuild = process.env.NODE_ENV !== "production";
-  const [showTuningPanel, setShowTuningPanel] =
-    useState(isNonProductionBuild);
+  const [showTuningPanel, setShowTuningPanel] = useState(false);
   const [canUseLobbyDevTools, setCanUseLobbyDevTools] =
     useState(isNonProductionBuild);
   /** 확장 프로그램이 폼 DOM에 속성을 주입하면 SSR HTML과 불일치 → 튜닝 패널은 마운트 후에만 렌더 */
@@ -146,11 +146,6 @@ export function LobbyScreen() {
   }, [isNonProductionBuild]);
 
   /** 프로덕션 빌드 + localhost에서만 dev 도구가 늦게 켜지므로, tune 패널도 그때 기본 켜기 */
-  useEffect(() => {
-    if (!canUseLobbyDevTools || isNonProductionBuild) return;
-    setShowTuningPanel(true);
-  }, [canUseLobbyDevTools, isNonProductionBuild]);
-
   useEffect(() => {
     if (!canUseLobbyDevTools || typeof window === "undefined") return;
     try {
@@ -451,17 +446,19 @@ export function LobbyScreen() {
       </div>
 
       {canUseLobbyDevTools && showTuningPanel && tuningPanelClientReady ? (
-        <LobbyTuningPanel
-          layout={tunedLobbyLayout}
-          selectedKey={selectedLayoutKey}
-          overlayEnabled={showLobbyOverlay}
-          overlayOpacity={lobbyOverlayOpacity}
-          onSelectedKeyChange={setSelectedLayoutKey}
-          onLayoutItemChange={changeLayoutItem}
-          onResetLayout={resetTunedLayout}
-          onOverlayEnabledChange={setLobbyOverlayEnabled}
-          onOverlayOpacityChange={changeLobbyOverlayOpacity}
-        />
+        <FrameExternalOverlayPortal>
+          <LobbyTuningPanel
+            layout={tunedLobbyLayout}
+            selectedKey={selectedLayoutKey}
+            overlayEnabled={showLobbyOverlay}
+            overlayOpacity={lobbyOverlayOpacity}
+            onSelectedKeyChange={setSelectedLayoutKey}
+            onLayoutItemChange={changeLayoutItem}
+            onResetLayout={resetTunedLayout}
+            onOverlayEnabledChange={setLobbyOverlayEnabled}
+            onOverlayOpacityChange={changeLobbyOverlayOpacity}
+          />
+        </FrameExternalOverlayPortal>
       ) : null}
     </>
   );

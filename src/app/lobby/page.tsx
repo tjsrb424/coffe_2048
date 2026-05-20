@@ -25,7 +25,7 @@ export default function LobbyPage() {
         />
       </div>
 
-      <div className="relative z-10">
+      <div className="relative z-10 h-full">
         <LobbyScreen />
       </div>
     </div>

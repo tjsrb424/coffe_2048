@@ -10,6 +10,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { FrameExternalOverlayPortal } from "@/components/dev/FrameExternalOverlayPortal";
 import { BeanIcon } from "@/components/ui/BeanIcon";
 import { Button } from "@/components/ui/Button";
 import { CoinIcon } from "@/components/ui/CoinIcon";
@@ -1063,17 +1064,19 @@ export function PuzzleScreen() {
       </AnimatePresence>
 
       {canUsePuzzleDevTools && showTuningPanel && tuningPanelClientReady ? (
-        <PuzzleTuningPanel
-          layout={tunedLayout}
-          selectedKey={selectedLayoutKey}
-          overlayEnabled={showPuzzleOverlay}
-          overlayOpacity={puzzleOverlayOpacity}
-          onSelectedKeyChange={setSelectedLayoutKey}
-          onLayoutItemChange={changeLayoutItem}
-          onResetLayout={resetTunedLayout}
-          onOverlayEnabledChange={setPuzzleOverlayEnabled}
-          onOverlayOpacityChange={changePuzzleOverlayOpacity}
-        />
+        <FrameExternalOverlayPortal>
+          <PuzzleTuningPanel
+            layout={tunedLayout}
+            selectedKey={selectedLayoutKey}
+            overlayEnabled={showPuzzleOverlay}
+            overlayOpacity={puzzleOverlayOpacity}
+            onSelectedKeyChange={setSelectedLayoutKey}
+            onLayoutItemChange={changeLayoutItem}
+            onResetLayout={resetTunedLayout}
+            onOverlayEnabledChange={setPuzzleOverlayEnabled}
+            onOverlayOpacityChange={changePuzzleOverlayOpacity}
+          />
+        </FrameExternalOverlayPortal>
       ) : null}
     </div>
   );

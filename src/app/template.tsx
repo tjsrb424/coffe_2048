@@ -78,8 +78,12 @@ export default function Template({ children }: { children: React.ReactNode }) {
   }, [isNonProductionBuild, pathname]);
 
   return (
-    <div className="min-h-[100dvh] w-full">
-      {children}
+    <div className="coffee-game-shell">
+      <div className="coffee-game-frame">
+        <div className="coffee-game-frame-content">
+          {children}
+        </div>
+      </div>
       {showDevDebugPanel ? (
         <DevDebugPanel className={devDebugPanelClassName} />
       ) : null}

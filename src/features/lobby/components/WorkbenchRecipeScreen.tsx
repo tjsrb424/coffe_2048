@@ -9,6 +9,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { FrameExternalOverlayPortal } from "@/components/dev/FrameExternalOverlayPortal";
 import type { DrinkMenuId } from "@/features/meta/types/gameState";
 import {
   WORKBENCH_LAYOUT_BASE,
@@ -549,13 +550,15 @@ export function WorkbenchRecipeScreen() {
       </main>
 
       {canUseWorkbenchDevTools && showTuningPanel ? (
-        <WorkbenchTuningPanel
-          layout={tunedLayout}
-          selectedKey={selectedLayoutKey}
-          onSelectedKeyChange={setSelectedLayoutKey}
-          onLayoutItemChange={changeLayoutItem}
-          onResetLayout={resetTunedLayout}
-        />
+        <FrameExternalOverlayPortal>
+          <WorkbenchTuningPanel
+            layout={tunedLayout}
+            selectedKey={selectedLayoutKey}
+            onSelectedKeyChange={setSelectedLayoutKey}
+            onLayoutItemChange={changeLayoutItem}
+            onResetLayout={resetTunedLayout}
+          />
+        </FrameExternalOverlayPortal>
       ) : null}
     </div>
   );

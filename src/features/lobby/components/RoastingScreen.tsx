@@ -315,7 +315,7 @@ function CurrencyItem({
 function SelectedBeanInfoPanel({ bean }: { bean: BeanItem }) {
   return (
     <aside
-      className="selected-bean-info-panel absolute right-3 top-[27.2dvh] w-[112px] overflow-hidden"
+      className="selected-bean-info-panel absolute right-3 top-[27.2%] w-[112px] overflow-hidden"
       data-asset-path={ROASTING_ASSETS.selectedBeanInfoPanel}
       style={{ aspectRatio: "233 / 402" }}
     >
@@ -370,7 +370,7 @@ function BeanSelectionRoastPanel({
 }) {
   return (
     <section
-      className="bean-selection-roast-panel absolute inset-x-3 top-[50.5dvh]"
+      className="bean-selection-roast-panel absolute inset-x-3 top-[50.5%]"
       data-asset-path={ROASTING_ASSETS.selectionPanel}
       style={{ aspectRatio: "702 / 400" }}
     >
@@ -516,7 +516,7 @@ function RoastingStartButton({
       type="button"
       onClick={onClick}
       disabled={status === "idle" && !canStart}
-      className="roasting-start-button absolute left-1/2 top-[75.3dvh] w-[240px] -translate-x-1/2 active:scale-[0.98] disabled:opacity-60"
+      className="roasting-start-button absolute left-1/2 top-[75.3%] w-[240px] -translate-x-1/2 active:scale-[0.98] disabled:opacity-60"
       data-asset-path={ROASTING_ASSETS.startButton}
     >
       <span className="relative block" style={{ aspectRatio: "412 / 99" }}>
@@ -560,7 +560,7 @@ function RoastingProgressPanel({
         : "대기 중";
   return (
     <section
-      className="roasting-progress-panel absolute inset-x-3 top-[83dvh]"
+      className="roasting-progress-panel absolute inset-x-3 top-[83%]"
       data-asset-path={ROASTING_ASSETS.progressPanel}
       style={{ aspectRatio: "703 / 158" }}
     >
